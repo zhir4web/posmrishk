@@ -82,11 +82,11 @@
       <div class="pos-layout">
         <!-- Left: POS Sales Counter -->
         <div class="pos-counter-section">
-          <div class="card">
-            <!-- Poultry & Service Type Selector -->
+          <div class="card" style="padding: 1.25rem;">
+            <!-- 1. Poultry & Service Type Selector -->
             <div class="pos-row">
               <label class="form-label" style="font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span>جۆری پەلەوەر و خزمەتگوزاری:</span>
+                <span>جۆری پەلەوەر و فرۆشتن:</span>
                 <span id="pos_current_type_badge" class="badge badge-success">🐔 مریشکی ناسک</span>
               </label>
               <div class="poultry-type-grid" id="poultry_type_selector">
@@ -113,17 +113,9 @@
               </div>
             </div>
 
-            <!-- Service Only Bird Sub-Selector Panel (shown only when 'تەنها پاککردن' is active) -->
-            <div id="service_only_panel" class="service-only-panel" style="display: none;">
-              <div class="service-alert-banner">
-                <span style="font-size: 1.3rem;">✂️</span>
-                <div>
-                  <strong>خزمەتگوزاری پاککردن و بڕینی پەلەوەری کڕیار</strong>
-                  <div style="font-size: 0.82rem; opacity: 0.95;">تەنها کرێی پاککردن هەژمار دەکرێت. دەتوانیت بە دڵی خۆت نرخەکە دیاری بکەیت یان بیگۆڕیت.</div>
-                </div>
-              </div>
-
-              <label class="form-label" style="margin-top: 0.75rem; font-weight: 700;">جۆری پەلەوەری کڕیار یان نرخی دەستی:</label>
+            <!-- 2. Service Only Bird Selector (shown only when 'تەنها پاککردن' is selected) -->
+            <div id="service_only_panel" class="service-only-panel" style="display: none; margin-bottom: 1rem;">
+              <label class="form-label" style="font-weight: 700; color: #92400e; margin-bottom: 0.4rem;">جۆری پەلەوەری کڕیار بۆ پاککردن:</label>
               <div class="service-target-grid" id="service_target_selector">
                 <button type="button" class="service-target-btn active" data-target="مریشک">
                   <span class="st-icon">🐔</span>
@@ -145,76 +137,45 @@
                   <span class="st-title">قەل</span>
                   <span class="st-fee" id="fee_badge_turkey">٥,٠٠٠ د.ع</span>
                 </button>
-                <button type="button" class="service-target-btn" data-target="نرخی دەستی" style="border-color: #d97706;">
+                <button type="button" class="service-target-btn" data-target="نرخی دەستی">
                   <span class="st-icon">✏️</span>
                   <span class="st-title">نرخی دەستی</span>
-                  <span class="st-fee" style="background: #fef08a;">گۆڕاو</span>
+                  <span class="st-fee">گۆڕاو</span>
                 </button>
               </div>
 
-              <!-- Direct Manual Cleaning Price Entry (for Customer Poultry) -->
-              <div class="pos-row" style="margin-top: 0.85rem; margin-bottom: 0.25rem;">
-                <label class="form-label" for="pos_service_custom_fee" style="font-weight: 800; color: #92400e; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
-                  <span>💰 نرخی پاککردنی ١ دانە (دینار - خۆت دیاری بکە):</span>
-                  <span id="pos_service_fee_indicator" class="badge badge-warning" style="font-size: 0.9rem; font-weight: 900;">١,٥٠٠ د.ع</span>
+              <!-- Direct Custom Fee for Customer Poultry (clean single input) -->
+              <div id="service_custom_fee_wrapper" style="margin-top: 0.6rem; display: flex; align-items: center; gap: 0.75rem; background: #fefce8; padding: 0.6rem 0.85rem; border-radius: var(--radius-md); border: 1.5px solid #fef08a;">
+                <label class="form-label" for="pos_service_custom_fee" style="margin: 0; font-weight: 800; color: #854d0e; font-size: 0.88rem; white-space: nowrap;">
+                  ✂️ کرێی پاککردنی ١ دانە (د.ع):
                 </label>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                  <input type="number" min="0" step="250" id="pos_service_custom_fee" class="input-text" value="1500" placeholder="بۆ نموونە: 1500" style="font-size: 1.3rem; font-weight: 900; height: 50px; color: #b45309; border: 2px solid #f59e0b; flex: 1;">
-                </div>
-                <!-- Quick Price Pills -->
-                <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.5rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.78rem; font-weight: 800; color: #92400e; align-self: center;">نرخە خێراکان:</span>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="1000">١,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="1500">١,٥٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="2000">٢,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="2500">٢,٥٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="3000">٣,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="3500">٣,٥٠٠ د.ع</button>
-                  <button type="button" class="touch-btn fee-quick-btn" data-fee="5000">٥,٠٠٠ د.ع</button>
-                </div>
+                <input type="number" min="0" step="250" id="pos_service_custom_fee" class="input-text" value="1500" style="font-size: 1.15rem; font-weight: 900; height: 42px; color: #a16207; text-align: center; max-width: 160px;">
               </div>
             </div>
 
-            <!-- Manual Sell Price per KG Direct Input (For Meat Sales) -->
-            <div class="pos-row" id="pos_meat_price_config_section">
-              <label class="form-label" for="pos_unit_sell_price_input" style="font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                <span>💰 نرخی فرۆشتنی ١ کیلۆگرام (دەتوانیت خۆت دیاری بکەیت):</span>
-                <span id="pos_unit_sell_price_badge" class="badge badge-primary">٢,٨٥٠ د.ع/کگم</span>
+            <!-- 3. Dual Row: Customer Name & Bird Count -->
+            <div style="display: grid; grid-template-columns: 1fr 120px; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div class="pos-row" style="margin-bottom: 0;">
+                <label class="form-label" for="pos_customer_name">ناوی کڕیار (ئارەزوومەندانە):</label>
+                <input type="text" id="pos_customer_name" class="input-text" placeholder="ناوی کڕیار یان مێز..." style="height: 48px;">
+              </div>
+              <div class="pos-row" style="margin-bottom: 0;">
+                <label class="form-label" id="pos_count_label" for="pos_chickens_count" style="font-weight: 800;">ژمارەی دانە:</label>
+                <input type="number" id="pos_chickens_count" class="input-text" inputmode="numeric" min="1" value="1" style="font-size: 1.25rem; font-weight: 900; height: 48px; text-align: center; color: var(--primary);">
+              </div>
+            </div>
+
+            <!-- 4. Scale Weight Display & Touch Keypad (Hidden for Service Only) -->
+            <div class="pos-row" id="pos_scale_weight_section" style="margin-bottom: 0.75rem;">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span>کێشی سەر تەرازوو (کیلۆگرام):</span>
+                <span id="pos_unit_sell_price_badge" class="badge badge-primary" style="font-weight: 800;">٢,٨٥٠ د.ع/کگم</span>
               </label>
-              <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="number" min="0" step="50" id="pos_unit_sell_price_input" class="input-text" value="2850" placeholder="نرخی فرۆشتن بە دەست بنووسە..." style="font-size: 1.25rem; font-weight: 800; height: 50px; color: var(--primary); flex: 1;">
-              </div>
-              <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.5rem; flex-wrap: wrap;">
-                <span style="font-size: 0.78rem; font-weight: 800; color: var(--text-muted); align-self: center;">نرخە باوەکان:</span>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2000">٢,٠٠٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2100">٢,١٠٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2200">٢,٢٠٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2500">٢,٥٠٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2750">٢,٧٥٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2850">٢,٨٥٠ د.ع</button>
-                <button type="button" class="touch-btn meat-price-quick-btn" data-price="3000">٣,٠٠٠ د.ع</button>
-              </div>
-            </div>
-
-            <!-- Customer Name Input -->
-            <div class="pos-row">
-              <label class="form-label" for="pos_customer_name">ناوی کڕیار (ئارەزوومەندانە):</label>
-              <input type="text" id="pos_customer_name" class="input-text" placeholder="ناوی کڕیار یان ڕێستۆرانت بنووسە...">
-            </div>
-
-            <!-- Direct Number Input for Chickens Count -->
-            <div class="pos-row">
-              <label class="form-label" id="pos_count_label" for="pos_chickens_count" style="font-weight: 800;">ژمارەی مریشک / دانە:</label>
-              <input type="number" id="pos_chickens_count" class="input-text" inputmode="numeric" min="1" value="1" placeholder="ژمارەی دانە بە دەست بنووسە (بۆ نموونە: 1, 2, 5...)" style="font-size: 1.25rem; font-weight: 800; height: 54px; color: var(--primary);">
-            </div>
-
-            <!-- Scale Weight Display Screen (Hidden in Service Only Mode) -->
-            <div class="pos-row" id="pos_scale_weight_section">
-              <label class="form-label">کێشی سەر تەرازوو (کیلۆگرام):</label>
+              
               <div class="weight-screen focused">
                 <div>
                   <div class="screen-label">کێشی سەر تەرازوو</div>
-                  <div style="font-size: 0.75rem; color: #64748b;">تەرازووی دیجیتاڵ / لەمس</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">تەرازووی لەمسی خێرا</div>
                 </div>
                 <div style="display: flex; align-items: baseline;">
                   <span id="pos_weight_display" class="screen-val">0.00</span>
@@ -222,7 +183,7 @@
                 </div>
               </div>
 
-              <!-- Quick weight adjustments -->
+              <!-- Quick weight helpers -->
               <div class="quick-weight-helpers">
                 <button type="button" class="helper-btn" data-add="0.1">+٠.١ کگم</button>
                 <button type="button" class="helper-btn" data-add="0.5">+٠.٥ کگم</button>
@@ -230,7 +191,7 @@
                 <button type="button" class="helper-btn" data-add="2.0">+٢.٠ کگم</button>
               </div>
 
-              <!-- iPad Touch Keypad -->
+              <!-- Touch Keypad -->
               <div class="keypad-grid">
                 <button type="button" class="keypad-btn" data-key="7">7</button>
                 <button type="button" class="keypad-btn" data-key="8">8</button>
@@ -248,15 +209,15 @@
                 <button type="button" class="keypad-btn" data-key="0">0</button>
                 <button type="button" class="keypad-btn action-btn" data-key="backspace">⌫</button>
 
-                <button type="button" class="keypad-btn clear-btn" data-key="clear" style="grid-column: 1 / -1; height: 44px; font-size: 1rem;">
-                  سڕینەوەی تەواوی کێش (Clear)
+                <button type="button" class="keypad-btn clear-btn" data-key="clear" style="grid-column: 1 / -1; height: 40px; font-size: 0.95rem;">
+                  سڕینەوەی کێش (Clear)
                 </button>
               </div>
             </div>
 
-            <!-- Cleaning & Cutting Choice Buttons (Only shown for Meat Sales) -->
-            <div class="pos-row" id="pos_cleaning_choice_section">
-              <label class="form-label">خزمەتگوزاری پاککردن و بڕین:</label>
+            <!-- 5. Cleaning & Cutting Choice Buttons (for Meat Sales) -->
+            <div class="pos-row" id="pos_cleaning_choice_section" style="margin-bottom: 0.85rem;">
+              <label class="form-label" style="margin-bottom: 0.35rem;">خزمەتگوزاری پاککردن و بڕین:</label>
               <div class="cleaning-selector-grid">
                 <button type="button" class="cleaning-choice-btn active" id="btn_cleaned_yes" data-cleaned="true">
                   <span class="choice-icon">✂️</span>
@@ -270,61 +231,47 @@
                   <span class="choice-icon">🐔</span>
                   <div class="choice-text">
                     <div class="choice-title">بێ پاککردن (زیندوو)</div>
-                    <div class="choice-fee">بەبێ کرێی زیادە (٠ د.ع)</div>
+                    <div class="choice-fee">٠ د.ع (بێ بەرامبەر)</div>
                   </div>
                   <span class="choice-check">✓</span>
                 </button>
               </div>
 
-              <!-- Direct Manual Cleaning Fee Entry for Regular Meat Sales (دەستکاریکردنی نرخی پاککردن بۆ هەموو مریشک و پەلەوەرەکان) -->
-              <div id="pos_meat_cleaning_custom_panel" class="meat-cleaning-custom-panel" style="margin-top: 0.65rem; background: #fefce8; padding: 0.85rem; border-radius: var(--radius-md); border: 1.5px solid #fde047;">
-                <label class="form-label" for="pos_meat_cleaning_fee_input" style="font-weight: 800; color: #854d0e; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
-                  <span>✂️ نرخی پاککردن و بڕین بۆ ١ دانە (دەتوانیت خۆت دیاری بکەیت):</span>
-                  <span id="pos_meat_cleaning_fee_badge" class="badge badge-warning">١,٥٠٠ د.ع</span>
+              <!-- Single clean editable input for meat cleaning fee (if cashier wants custom) -->
+              <div id="pos_meat_cleaning_custom_panel" class="meat-cleaning-custom-panel" style="margin-top: 0.5rem; display: flex; align-items: center; justify-content: space-between; background: #fefce8; padding: 0.5rem 0.85rem; border-radius: var(--radius-md); border: 1.5px solid #fef08a;">
+                <label class="form-label" for="pos_meat_cleaning_fee_input" style="margin: 0; font-weight: 700; color: #854d0e; font-size: 0.82rem;">
+                  ✂️ دەستکاری کرێی پاککردنی ١ دانە (د.ع):
                 </label>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                  <input type="number" min="0" step="250" id="pos_meat_cleaning_fee_input" class="input-text" value="1500" placeholder="نرخی پاککردن بە دەست بنووسە..." style="font-size: 1.25rem; font-weight: 900; height: 48px; color: #a16207; border: 2px solid #facc15; flex: 1;">
-                </div>
-                <!-- Quick Fee Pills -->
-                <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.45rem; flex-wrap: wrap;">
-                  <span style="font-size: 0.78rem; font-weight: 800; color: #854d0e; align-self: center;">نرخە باوەکان:</span>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="1000">١,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="1500">١,٥٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="2000">٢,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="2500">٢,٥٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="3000">٣,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="5000">٥,٠٠٠ د.ع</button>
-                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="0">٠ (بێ بەرامبەر)</button>
-                </div>
+                <input type="number" min="0" step="250" id="pos_meat_cleaning_fee_input" class="input-text" value="1500" style="font-size: 1.1rem; font-weight: 800; height: 38px; color: #a16207; text-align: center; max-width: 140px;">
               </div>
             </div>
 
-            <!-- Live Calculation & Summary Panel -->
-            <div class="pos-summary-card">
+            <!-- 6. Live Calculation Summary Card -->
+            <div class="pos-summary-card" style="margin-bottom: 1rem;">
               <div class="summary-row">
-                <span class="label">نرخی فرۆشتنی ١ کیلۆ:</span>
+                <span class="label">نرخی ١ کیلۆ:</span>
                 <span id="calc_unit_price" class="val">0 د.ع</span>
               </div>
               <div class="summary-row">
-                <span class="label">نرخی گۆشتی مریشک:</span>
+                <span class="label">نرخی گۆشت:</span>
                 <span id="calc_meat_total" class="val">0 د.ع</span>
               </div>
               <div class="summary-row">
-                <span class="label">کرێی پاککردن و بڕین:</span>
+                <span class="label">کرێی پاککردن:</span>
                 <span id="calc_cleaning_total" class="val">0 د.ع</span>
               </div>
               <div class="summary-row total-row">
-                <span class="label" style="font-size: 1.1rem; color: var(--text-main); font-weight: 800;">کۆی گشتی وەسڵ:</span>
+                <span class="label" style="font-size: 1.15rem; color: var(--text-main); font-weight: 900;">کۆی گشتی:</span>
                 <span id="calc_grand_total" class="grand-total-val">0 د.ع</span>
               </div>
             </div>
 
-            <!-- Action Buttons -->
+            <!-- 7. Action Buttons -->
             <div class="pos-actions-grid">
-              <button type="button" id="pos_save_and_print_btn" class="btn-primary">
-                <span>🖨️</span> تۆمارکردن و دەرکردنی وەسڵ
+              <button type="button" id="pos_save_and_print_btn" class="btn-primary" style="height: 52px; font-size: 1.05rem;">
+                <span>🖨️</span> تۆمارکردن و چاپکردنی وەسڵ
               </button>
-              <button type="button" id="pos_save_only_btn" class="btn-secondary">
+              <button type="button" id="pos_save_only_btn" class="btn-secondary" style="height: 52px; font-size: 1.05rem;">
                 <span>💾</span> تۆماری خێرا
               </button>
             </div>
