@@ -1,8 +1,9 @@
 /**
- * Sargalu Chicken POS - Service Worker (Network-First with Offline Fallback)
+ * Sargalu Chicken POS - High-Performance Offline-First Service Worker
+ * Instant Cache-First with Background Revalidation (Stale-While-Revalidate)
  */
 
-const CACHE_NAME = 'sargalu-pos-v7';
+const CACHE_NAME = 'sargalu-pos-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -41,25 +42,28 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Network-first strategy so updates are immediately visible
+// Cache-first with background revalidation strategy
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          return cachedResponse || caches.match('./index.html');
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Offline fallback
+          return cachedResponse || caches.match('./index.html', { ignoreSearch: true });
         });
-      })
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });

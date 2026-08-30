@@ -1,9 +1,8 @@
 /* 
  * Sargalu Chicken POS (مریشک فرۆشی سەرگەڵو)
  * Apple iPad & Safari Touch-Optimized Modern RTL Stylesheet
+ * 100% Offline-Ready Native Kurdish/Arabic Typography
  */
-
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=Noto+Sans+Arabic:wght@400;600;700;800&display=swap');
 
 :root {
   --primary: #15803d;       /* Kurdish Grass Green */
@@ -42,7 +41,7 @@
   --shadow-lg: 0 10px 25px rgba(15, 23, 42, 0.1);
   --shadow-glow: 0 0 20px rgba(21, 128, 61, 0.2);
 
-  --font-family: 'Vazirmatn', 'Noto Sans Arabic', system-ui, -apple-system, sans-serif;
+  --font-family: -apple-system, BlinkMacSystemFont, "Geeza Pro", "Damascus", "Vazirmatn", "Noto Sans Arabic", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 /* Reset & Base */
