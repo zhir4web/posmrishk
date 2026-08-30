@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="ckb" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#15803d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="مریشک فرۆشی سەرگەڵو">
+  <title>مریشک فرۆشی سەرگەڵو | سیستەمی بەڕێوەبردن و فرۆشتنی خێرا (iPad POS)</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2315803d'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>🐔</text></svg>">
+
+  <!-- Stylesheet with Cache Busting -->
+  <link rel="stylesheet" href="css/style.css?v=5.0">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header no-print">
+    <div class="header-top">
+      <div class="brand-section">
+        <div class="brand-logo">🐔</div>
+        <div>
+          <div class="brand-title">مریشک فرۆشی سەرگەڵو</div>
+          <div class="brand-subtitle">سیستەمی فرۆشتنی خێرا و بەڕێوەبردنی کۆگا (iPad POS)</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div id="network_status_badge" class="badge badge-success">
+          <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span>
+          ئۆنلاین
+        </div>
+        <button id="btn_toggle_sound" class="icon-btn active" title="دەنگ">
+          🔊
+        </button>
+        <button id="btn_toggle_fullscreen" class="icon-btn" title="پڕکردنی شاشە">
+          ⛶
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs-wrapper">
+      <button class="nav-tab active" data-tab="pos">
+        <span>⚡</span> شاشەی فرۆشتنی خێرا (POS)
+      </button>
+      <button class="nav-tab" data-tab="advisor">
+        <span>💡</span> ڕاوێژکاری زیرەکی نرخ (پێشنیاری ڕۆژ)
+      </button>
+      <button class="nav-tab" data-tab="batches">
+        <span>📦</span> داخڵکردنی باری نوێ (مەخزەن)
+      </button>
+      <button class="nav-tab" data-tab="losses">
+        <span>⚠️</span> مرداربوونەوە و زیان
+      </button>
+      <button class="nav-tab" data-tab="expenses">
+        <span>💸</span> خەرجییە کاتییەکان
+      </button>
+      <button class="nav-tab" data-tab="reports">
+        <span>📊</span> ڕاپۆرتی ڕۆژانە و قازانج
+      </button>
+      <button class="nav-tab" data-tab="settings">
+        <span>⚙️</span> ڕێکخستن و پاشەکەوت
+      </button>
+    </nav>
+  </header>
+
+  <!-- Main Content Areas -->
+  <main class="main-content no-print">
+
+    <!-- ==================== TAB 1: POS SCREEN ==================== -->
+    <section id="tab_pos" class="tab-pane active">
+      <!-- Active Batch Banner -->
+      <div id="pos_batch_banner" class="pos-batch-alert">
+        <!-- Injected dynamically via pos.js -->
+      </div>
+
+      <div class="pos-layout">
+        <!-- Left: POS Sales Counter -->
+        <div class="pos-counter-section">
+          <div class="card">
+            <!-- Poultry & Service Type Selector -->
+            <div class="pos-row">
+              <label class="form-label" style="font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <span>جۆری پەلەوەر و خزمەتگوزاری:</span>
+                <span id="pos_current_type_badge" class="badge badge-success">🐔 مریشکی ناسک</span>
+              </label>
+              <div class="poultry-type-grid" id="poultry_type_selector">
+                <button type="button" class="poultry-pill-btn active" data-type="مریشکی ناسک">
+                  <span class="p-icon">🐔</span>
+                  <span class="p-name">مریشکی ناسک</span>
+                </button>
+                <button type="button" class="poultry-pill-btn" data-type="مریشکی پیر">
+                  <span class="p-icon">🐓</span>
+                  <span class="p-name">مریشکی پیر</span>
+                </button>
+                <button type="button" class="poultry-pill-btn" data-type="قاز">
+                  <span class="p-icon">🦆</span>
+                  <span class="p-name">قاز</span>
+                </button>
+                <button type="button" class="poultry-pill-btn" data-type="قەل">
+                  <span class="p-icon">🦃</span>
+                  <span class="p-name">قەل</span>
+                </button>
+                <button type="button" class="poultry-pill-btn service-btn" data-type="تەنها پاککردن">
+                  <span class="p-icon">✂️</span>
+                  <span class="p-name">تەنها پاککردن (کڕیار)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Service Only Bird Sub-Selector Panel (shown only when 'تەنها پاککردن' is active) -->
+            <div id="service_only_panel" class="service-only-panel" style="display: none;">
+              <div class="service-alert-banner">
+                <span style="font-size: 1.3rem;">✂️</span>
+                <div>
+                  <strong>خزمەتگوزاری پاککردن و بڕینی پەلەوەری کڕیار</strong>
+                  <div style="font-size: 0.82rem; opacity: 0.95;">تەنها کرێی پاککردن هەژمار دەکرێت. دەتوانیت بە دڵی خۆت نرخەکە دیاری بکەیت یان بیگۆڕیت.</div>
+                </div>
+              </div>
+
+              <label class="form-label" style="margin-top: 0.75rem; font-weight: 700;">جۆری پەلەوەری کڕیار یان نرخی دەستی:</label>
+              <div class="service-target-grid" id="service_target_selector">
+                <button type="button" class="service-target-btn active" data-target="مریشک">
+                  <span class="st-icon">🐔</span>
+                  <span class="st-title">مریشک</span>
+                  <span class="st-fee" id="fee_badge_chicken">١,٥٠٠ د.ع</span>
+                </button>
+                <button type="button" class="service-target-btn" data-target="مریشکی پیر">
+                  <span class="st-icon">🐓</span>
+                  <span class="st-title">مریشکی پیر</span>
+                  <span class="st-fee" id="fee_badge_old_chicken">٢,٠٠٠ د.ع</span>
+                </button>
+                <button type="button" class="service-target-btn" data-target="قاز">
+                  <span class="st-icon">🦆</span>
+                  <span class="st-title">قاز</span>
+                  <span class="st-fee" id="fee_badge_goose">٣,٥٠٠ د.ع</span>
+                </button>
+                <button type="button" class="service-target-btn" data-target="قەل">
+                  <span class="st-icon">🦃</span>
+                  <span class="st-title">قەل</span>
+                  <span class="st-fee" id="fee_badge_turkey">٥,٠٠٠ د.ع</span>
+                </button>
+                <button type="button" class="service-target-btn" data-target="نرخی دەستی" style="border-color: #d97706;">
+                  <span class="st-icon">✏️</span>
+                  <span class="st-title">نرخی دەستی</span>
+                  <span class="st-fee" style="background: #fef08a;">گۆڕاو</span>
+                </button>
+              </div>
+
+              <!-- Direct Manual Cleaning Price Entry (for Customer Poultry) -->
+              <div class="pos-row" style="margin-top: 0.85rem; margin-bottom: 0.25rem;">
+                <label class="form-label" for="pos_service_custom_fee" style="font-weight: 800; color: #92400e; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                  <span>💰 نرخی پاککردنی ١ دانە (دینار - خۆت دیاری بکە):</span>
+                  <span id="pos_service_fee_indicator" class="badge badge-warning" style="font-size: 0.9rem; font-weight: 900;">١,٥٠٠ د.ع</span>
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="number" min="0" step="250" id="pos_service_custom_fee" class="input-text" value="1500" placeholder="بۆ نموونە: 1500" style="font-size: 1.3rem; font-weight: 900; height: 50px; color: #b45309; border: 2px solid #f59e0b; flex: 1;">
+                </div>
+                <!-- Quick Price Pills -->
+                <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.5rem; flex-wrap: wrap;">
+                  <span style="font-size: 0.78rem; font-weight: 800; color: #92400e; align-self: center;">نرخە خێراکان:</span>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="1000">١,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="1500">١,٥٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="2000">٢,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="2500">٢,٥٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="3000">٣,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="3500">٣,٥٠٠ د.ع</button>
+                  <button type="button" class="touch-btn fee-quick-btn" data-fee="5000">٥,٠٠٠ د.ع</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Manual Sell Price per KG Direct Input (For Meat Sales) -->
+            <div class="pos-row" id="pos_meat_price_config_section">
+              <label class="form-label" for="pos_unit_sell_price_input" style="font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                <span>💰 نرخی فرۆشتنی ١ کیلۆگرام (دەتوانیت خۆت دیاری بکەیت):</span>
+                <span id="pos_unit_sell_price_badge" class="badge badge-primary">٢,٨٥٠ د.ع/کگم</span>
+              </label>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="number" min="0" step="50" id="pos_unit_sell_price_input" class="input-text" value="2850" placeholder="نرخی فرۆشتن بە دەست بنووسە..." style="font-size: 1.25rem; font-weight: 800; height: 50px; color: var(--primary); flex: 1;">
+              </div>
+              <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.5rem; flex-wrap: wrap;">
+                <span style="font-size: 0.78rem; font-weight: 800; color: var(--text-muted); align-self: center;">نرخە باوەکان:</span>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2000">٢,٠٠٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2100">٢,١٠٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2200">٢,٢٠٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2500">٢,٥٠٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2750">٢,٧٥٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="2850">٢,٨٥٠ د.ع</button>
+                <button type="button" class="touch-btn meat-price-quick-btn" data-price="3000">٣,٠٠٠ د.ع</button>
+              </div>
+            </div>
+
+            <!-- Customer Name Input -->
+            <div class="pos-row">
+              <label class="form-label" for="pos_customer_name">ناوی کڕیار (ئارەزوومەندانە):</label>
+              <input type="text" id="pos_customer_name" class="input-text" placeholder="ناوی کڕیار یان ڕێستۆرانت بنووسە...">
+            </div>
+
+            <!-- Direct Number Input for Chickens Count -->
+            <div class="pos-row">
+              <label class="form-label" id="pos_count_label" for="pos_chickens_count" style="font-weight: 800;">ژمارەی مریشک / دانە:</label>
+              <input type="number" id="pos_chickens_count" class="input-text" inputmode="numeric" min="1" value="1" placeholder="ژمارەی دانە بە دەست بنووسە (بۆ نموونە: 1, 2, 5...)" style="font-size: 1.25rem; font-weight: 800; height: 54px; color: var(--primary);">
+            </div>
+
+            <!-- Scale Weight Display Screen (Hidden in Service Only Mode) -->
+            <div class="pos-row" id="pos_scale_weight_section">
+              <label class="form-label">کێشی سەر تەرازوو (کیلۆگرام):</label>
+              <div class="weight-screen focused">
+                <div>
+                  <div class="screen-label">کێشی سەر تەرازوو</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">تەرازووی دیجیتاڵ / لەمس</div>
+                </div>
+                <div style="display: flex; align-items: baseline;">
+                  <span id="pos_weight_display" class="screen-val">0.00</span>
+                  <span class="screen-unit">کگم</span>
+                </div>
+              </div>
+
+              <!-- Quick weight adjustments -->
+              <div class="quick-weight-helpers">
+                <button type="button" class="helper-btn" data-add="0.1">+٠.١ کگم</button>
+                <button type="button" class="helper-btn" data-add="0.5">+٠.٥ کگم</button>
+                <button type="button" class="helper-btn" data-add="1.0">+١.٠ کگم</button>
+                <button type="button" class="helper-btn" data-add="2.0">+٢.٠ کگم</button>
+              </div>
+
+              <!-- iPad Touch Keypad -->
+              <div class="keypad-grid">
+                <button type="button" class="keypad-btn" data-key="7">7</button>
+                <button type="button" class="keypad-btn" data-key="8">8</button>
+                <button type="button" class="keypad-btn" data-key="9">9</button>
+
+                <button type="button" class="keypad-btn" data-key="4">4</button>
+                <button type="button" class="keypad-btn" data-key="5">5</button>
+                <button type="button" class="keypad-btn" data-key="6">6</button>
+
+                <button type="button" class="keypad-btn" data-key="1">1</button>
+                <button type="button" class="keypad-btn" data-key="2">2</button>
+                <button type="button" class="keypad-btn" data-key="3">3</button>
+
+                <button type="button" class="keypad-btn" data-key=".">.</button>
+                <button type="button" class="keypad-btn" data-key="0">0</button>
+                <button type="button" class="keypad-btn action-btn" data-key="backspace">⌫</button>
+
+                <button type="button" class="keypad-btn clear-btn" data-key="clear" style="grid-column: 1 / -1; height: 44px; font-size: 1rem;">
+                  سڕینەوەی تەواوی کێش (Clear)
+                </button>
+              </div>
+            </div>
+
+            <!-- Cleaning & Cutting Choice Buttons (Only shown for Meat Sales) -->
+            <div class="pos-row" id="pos_cleaning_choice_section">
+              <label class="form-label">خزمەتگوزاری پاککردن و بڕین:</label>
+              <div class="cleaning-selector-grid">
+                <button type="button" class="cleaning-choice-btn active" id="btn_cleaned_yes" data-cleaned="true">
+                  <span class="choice-icon">✂️</span>
+                  <div class="choice-text">
+                    <div class="choice-title">بە پاککردن و بڕین</div>
+                    <div class="choice-fee" id="calc_choice_fee_label">+١,٥٠٠ د.ع بۆ هەر دانەیەک</div>
+                  </div>
+                  <span class="choice-check">✓</span>
+                </button>
+                <button type="button" class="cleaning-choice-btn" id="btn_cleaned_no" data-cleaned="false">
+                  <span class="choice-icon">🐔</span>
+                  <div class="choice-text">
+                    <div class="choice-title">بێ پاککردن (زیندوو)</div>
+                    <div class="choice-fee">بەبێ کرێی زیادە (٠ د.ع)</div>
+                  </div>
+                  <span class="choice-check">✓</span>
+                </button>
+              </div>
+
+              <!-- Direct Manual Cleaning Fee Entry for Regular Meat Sales (دەستکاریکردنی نرخی پاککردن بۆ هەموو مریشک و پەلەوەرەکان) -->
+              <div id="pos_meat_cleaning_custom_panel" class="meat-cleaning-custom-panel" style="margin-top: 0.65rem; background: #fefce8; padding: 0.85rem; border-radius: var(--radius-md); border: 1.5px solid #fde047;">
+                <label class="form-label" for="pos_meat_cleaning_fee_input" style="font-weight: 800; color: #854d0e; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                  <span>✂️ نرخی پاککردن و بڕین بۆ ١ دانە (دەتوانیت خۆت دیاری بکەیت):</span>
+                  <span id="pos_meat_cleaning_fee_badge" class="badge badge-warning">١,٥٠٠ د.ع</span>
+                </label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                  <input type="number" min="0" step="250" id="pos_meat_cleaning_fee_input" class="input-text" value="1500" placeholder="نرخی پاککردن بە دەست بنووسە..." style="font-size: 1.25rem; font-weight: 900; height: 48px; color: #a16207; border: 2px solid #facc15; flex: 1;">
+                </div>
+                <!-- Quick Fee Pills -->
+                <div class="quick-fee-pills" style="display: flex; gap: 6px; margin-top: 0.45rem; flex-wrap: wrap;">
+                  <span style="font-size: 0.78rem; font-weight: 800; color: #854d0e; align-self: center;">نرخە باوەکان:</span>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="1000">١,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="1500">١,٥٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="2000">٢,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="2500">٢,٥٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="3000">٣,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="5000">٥,٠٠٠ د.ع</button>
+                  <button type="button" class="touch-btn meat-clean-quick-btn" data-fee="0">٠ (بێ بەرامبەر)</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Calculation & Summary Panel -->
+            <div class="pos-summary-card">
+              <div class="summary-row">
+                <span class="label">نرخی فرۆشتنی ١ کیلۆ:</span>
+                <span id="calc_unit_price" class="val">0 د.ع</span>
+              </div>
+              <div class="summary-row">
+                <span class="label">نرخی گۆشتی مریشک:</span>
+                <span id="calc_meat_total" class="val">0 د.ع</span>
+              </div>
+              <div class="summary-row">
+                <span class="label">کرێی پاککردن و بڕین:</span>
+                <span id="calc_cleaning_total" class="val">0 د.ع</span>
+              </div>
+              <div class="summary-row total-row">
+                <span class="label" style="font-size: 1.1rem; color: var(--text-main); font-weight: 800;">کۆی گشتی وەسڵ:</span>
+                <span id="calc_grand_total" class="grand-total-val">0 د.ع</span>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="pos-actions-grid">
+              <button type="button" id="pos_save_and_print_btn" class="btn-primary">
+                <span>🖨️</span> تۆمارکردن و دەرکردنی وەسڵ
+              </button>
+              <button type="button" id="pos_save_only_btn" class="btn-secondary">
+                <span>💾</span> تۆماری خێرا
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Right: Recent Sales Stream -->
+        <div class="pos-feed-section">
+          <div class="card">
+            <div class="sales-feed-header">
+              <div>
+                <div class="card-title" style="margin-bottom: 0;">فرۆشتنەکانی ئەمڕۆ</div>
+                <div style="font-size: 0.78rem; color: var(--text-muted);">وەسڵە تۆمارکراوەکانی لەمسی خێرا</div>
+              </div>
+              <div style="display: flex; gap: 0.4rem;">
+                <span id="pos_sales_count_badge" class="badge badge-info">0 وەسڵ</span>
+                <span id="pos_sales_today_total" class="badge badge-success">0 د.ع</span>
+              </div>
+            </div>
+
+            <div id="pos_sales_feed_list" class="sales-feed-list">
+              <!-- Injected via pos.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: DEDICATED SMART PRICING ADVISOR ==================== -->
+    <section id="tab_advisor" class="tab-pane">
+      <div id="smart_advisor_full_page">
+        <!-- Injected dynamically via advisor.js -->
+      </div>
+    </section>
+
+    <!-- ==================== TAB 2: BATCHES & CAGES ==================== -->
+    <section id="tab_batches" class="tab-pane">
+      <div class="batches-grid">
+        <!-- Batch Form -->
+        <div class="card">
+          <div class="card-title">
+            <span>📦</span> داخڵکردنی باری نوێ (مەخزەن)
+          </div>
+
+          <form id="batch_entry_form">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="batch_poultry_type">جۆری پەلەوەر:</label>
+                <select id="batch_poultry_type" class="input-text" style="font-weight: 700;">
+                  <option value="مریشکی ناسک">🐔 مریشکی ناسک (گۆشت)</option>
+                  <option value="مریشکی پیر">🐓 مریشکی پیر</option>
+                  <option value="قاز">🦆 قاز</option>
+                  <option value="قەل">🦃 قەل</option>
+                </select>
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="batch_date">بەرواری گەیشتنی بار:</label>
+                <input type="date" id="batch_date" class="input-text" required>
+              </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="batch_cages_count">ژمارەی قەفەز:</label>
+                <input type="number" min="1" id="batch_cages_count" class="input-text" placeholder="بۆ نموونە: 3" value="3" required>
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="batch_total_chickens">کۆی ژمارەی مریشک لەناو قەفەزەکان:</label>
+                <input type="number" min="1" id="batch_total_chickens" class="input-text" placeholder="بۆ نموونە: 80 دانە" value="80">
+              </div>
+            </div>
+
+            <!-- Total Gross Weight of All Cages Combined -->
+            <div class="pos-row">
+              <label class="form-label" for="batch_total_weight">کۆی کێشی هەموو قەفەزەکان پێکەوە (کیلۆگرام):</label>
+              <input type="number" step="0.01" id="batch_total_weight" class="input-text" placeholder="بۆ نموونە: 195.5" required style="font-size: 1.15rem; font-weight: 800;">
+            </div>
+
+            <!-- Buy & Sell Price Grid -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="batch_buy_price">نرخی کڕینی ١ کیلۆ (دینار):</label>
+                <input type="number" min="0" id="batch_buy_price" class="input-text" value="2300" placeholder="2300" required>
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="batch_sell_price">نرخی فرۆشتنی ١ کیلۆ بۆ ئەمڕۆ (دینار):</label>
+                <input type="number" min="0" id="batch_sell_price" class="input-text" value="2850" placeholder="2850" required>
+              </div>
+            </div>
+
+            <!-- Computed Metrics Preview -->
+            <div class="metrics-row" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
+              <div class="metric-pill">
+                <span class="lbl">کۆی کێشی بار:</span>
+                <span id="calc_batch_preview_weight" class="val">0 کگم</span>
+              </div>
+              <div class="metric-pill">
+                <span class="lbl">تێکڕای کێشی ١ دانە:</span>
+                <span id="calc_batch_avg_bird_weight" class="val" style="color: var(--primary); font-weight: 900;">0.00 کگم</span>
+              </div>
+              <div class="metric-pill">
+                <span class="lbl">کۆی تێچووی کڕینی بار:</span>
+                <span id="calc_batch_total_cost" class="val" style="color: var(--danger); font-weight: 900;">0 د.ع</span>
+              </div>
+              <div class="metric-pill">
+                <span class="lbl">مەزەندەی داهاتی فرۆشتن:</span>
+                <span id="calc_batch_expected_profit" class="val" style="color: var(--primary); font-weight: 900;">0 د.ع</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1.25rem;">
+              <span>💾</span> تۆمارکردنی بار و کردن بە باری کارا
+            </button>
+          </form>
+        </div>
+
+        <!-- Saved Batches List -->
+        <div class="card">
+          <div class="card-title">
+            <span>📋</span> مێژووی بارەکانی مەخزەن
+          </div>
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>بەروار</th>
+                  <th>ژمارەی قەفەز</th>
+                  <th>کۆی کێش</th>
+                  <th>نرخی کڕین</th>
+                  <th>نرخی فرۆشتن</th>
+                  <th>کۆی تێچوو</th>
+                  <th>کردار</th>
+                </tr>
+              </thead>
+              <tbody id="batches_table_body">
+                <!-- Injected via batches.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: LOSSES ==================== -->
+    <section id="tab_losses" class="tab-pane">
+      <div class="batches-grid">
+        <!-- Loss Form -->
+        <div class="card" style="border-top: 4px solid var(--danger);">
+          <div class="card-title" style="color: var(--danger);">
+            <span>⚠️</span> تۆماری مرداربوونەوە و لەدەستچوون
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            ئەم مریشکانە ڕاستەوخۆ لە ڕەسیدی مەخزەن کەم دەبنەوە و زیانە داراییەکەیان لە حسابی قازانجی ڕۆژ دادەبەزێت.
+          </p>
+
+          <form id="loss_entry_form">
+            <!-- Dead count stepper -->
+            <div class="pos-row">
+              <label class="form-label">ژمارەی مریشکی مرداربوو (دانە):</label>
+              <div class="stepper-container">
+                <button type="button" id="loss_stepper_minus" class="stepper-btn">−</button>
+                <input type="number" min="1" id="loss_dead_count" class="input-text stepper-display" value="1" style="text-align: center;">
+                <button type="button" id="loss_stepper_plus" class="stepper-btn">+</button>
+              </div>
+            </div>
+
+            <!-- Custom estimated weight -->
+            <div class="pos-row">
+              <label class="form-label" for="loss_custom_weight">کێشی مەزەندەکراو (کگم) - دەتوانیت دەستکاری بکەیت:</label>
+              <input type="number" step="0.01" min="0" id="loss_custom_weight" class="input-text" placeholder="ئۆتۆماتیکی لەسەر تێکڕای کێش هەژمار دەکرێت">
+            </div>
+
+            <!-- Reason selection -->
+            <div class="pos-row">
+              <label class="form-label" for="loss_reason_select">هۆکاری لەدەستچوون:</label>
+              <select id="loss_reason_select" class="input-text">
+                <option value="مرداربوونەوە لە قەفەز">مرداربوونەوە لە قەفەز</option>
+                <option value="مرداربوونەوەی ڕێگا و بارکردن">مرداربوونەوەی ڕێگا و بارکردن</option>
+                <option value="برینداری و نەگونجاو بۆ فرۆشتن">برینداری و نەگونجاو بۆ فرۆشتن</option>
+                <option value="هۆکاری تر">هۆکاری تر</option>
+              </select>
+            </div>
+
+            <div class="pos-row">
+              <label class="form-label" for="loss_reason_note">تێبینی زیاتر (ئارەزوومەندانە):</label>
+              <input type="text" id="loss_reason_note" class="input-text" placeholder="تێبینی بنووسە...">
+            </div>
+
+            <!-- Preview metrics -->
+            <div class="metrics-row" style="background: var(--danger-light); border-color: #fecaca;">
+              <div class="metric-pill">
+                <span class="lbl">تێکڕای کێشی باری کارا:</span>
+                <span id="calc_loss_batch_avg" class="val">0.00 کگم</span>
+              </div>
+              <div class="metric-pill">
+                <span class="lbl">کۆی کێشی لەدەستچوو:</span>
+                <span id="calc_loss_weight" class="val" style="color: var(--danger);">0 کگم</span>
+              </div>
+              <div class="metric-pill" style="grid-column: 1 / -1;">
+                <span class="lbl">زیانی دارایی (نرخی کڕین × کێش):</span>
+                <span id="calc_loss_financial_cost" class="val" style="color: var(--danger); font-size: 1.4rem;">0 د.ع</span>
+              </div>
+            </div>
+
+            <button type="submit" class="btn-primary" style="background: var(--danger); width: 100%; margin-top: 1.25rem; box-shadow: 0 6px 16px rgba(185, 28, 28, 0.25);">
+              <span>🛑</span> کەمکردنەوە لە مەخزەن و دانان لە زیان
+            </button>
+          </form>
+        </div>
+
+        <!-- Today Losses Table -->
+        <div class="card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <div class="card-title" style="margin-bottom: 0;">
+              <span>📋</span> تۆماری مرداربوونەوەکانی ئەمڕۆ
+            </div>
+            <div style="display: flex; gap: 0.4rem;">
+              <span id="losses_today_total_count" class="badge badge-danger">0 دانە</span>
+              <span id="losses_today_total_cost" class="badge badge-danger">0 د.ع</span>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>کات</th>
+                  <th>دانە</th>
+                  <th>کێش</th>
+                  <th>تێچووی زیان</th>
+                  <th>هۆکار</th>
+                  <th>کردار</th>
+                </tr>
+              </thead>
+              <tbody id="losses_table_body">
+                <!-- Injected via losses.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 4: EXPENSES ==================== -->
+    <section id="tab_expenses" class="tab-pane">
+      <div class="batches-grid">
+        <!-- Expense Form -->
+        <div class="card">
+          <div class="card-title">
+            <span>💸</span> تۆمارکردنی خەرجییە کاتییەکان
+          </div>
+
+          <!-- Preset Category Cards -->
+          <div class="presets-grid" style="grid-template-columns: repeat(3, 1fr);">
+            <button type="button" class="preset-card-btn" data-category="کرێی دوکان">
+              <span class="icon">🏢</span>
+              <span class="name">کرێی دوکان</span>
+              <span class="sub">مانگانە (جێگیر)</span>
+            </button>
+            <button type="button" class="preset-card-btn" data-category="کارەبا">
+              <span class="icon">⚡</span>
+              <span class="name">کارەبا</span>
+              <span class="sub">موەلیدە / نیشتمانی</span>
+            </button>
+            <button type="button" class="preset-card-btn active" data-category="غاز">
+              <span class="icon">⛽</span>
+              <span class="name">غاز</span>
+              <span class="sub">دانە (بوتڵ)</span>
+            </button>
+            <button type="button" class="preset-card-btn" data-category="عەلاگە">
+              <span class="icon">🛍️</span>
+              <span class="name">عەلاگە</span>
+              <span class="sub">کیلۆگرام</span>
+            </button>
+            <button type="button" class="preset-card-btn" data-category="عەلەف / دانەوێڵە">
+              <span class="icon">🌾</span>
+              <span class="name">عەلەف</span>
+              <span class="sub">کیلۆگرام</span>
+            </button>
+            <button type="button" class="preset-card-btn" data-category="خەرجی تر">
+              <span class="icon">💼</span>
+              <span class="name">خەرجی تر</span>
+              <span class="sub">وەسف و پارە</span>
+            </button>
+          </div>
+
+          <form id="expense_entry_form">
+            <div class="pos-row">
+              <label class="form-label" for="expense_description">وەسفی خەرجی:</label>
+              <input type="text" id="expense_description" class="input-text" placeholder="وەسفی خەرجی بنووسە" required>
+            </div>
+
+            <!-- Optional Quantity/Weight Row (only for Gas, Feed, Bags) -->
+            <div id="expense_qty_wrapper" style="display: none; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+              <div class="pos-row" style="margin-bottom: 0;">
+                <label class="form-label" id="expense_qty_label" for="expense_qty">بڕ / ژمارە:</label>
+                <input type="number" step="0.1" min="0.01" id="expense_qty" class="input-text" value="1">
+              </div>
+              <div class="pos-row" style="margin-bottom: 0;">
+                <label class="form-label" for="expense_unit_type">جۆری یەکە:</label>
+                <input type="text" id="expense_unit_type" class="input-text" value="دانە">
+              </div>
+            </div>
+
+            <!-- Direct Amount Input (Clean and Large) -->
+            <div class="pos-row">
+              <label class="form-label" id="expense_total_label" for="expense_total_cost" style="font-weight: 800;">بڕی پارەی خەرجی (دینار):</label>
+              <input type="number" min="0" id="expense_total_cost" class="input-text" placeholder="بۆ نموونە: 350000" style="font-size: 1.3rem; font-weight: 800; color: var(--danger); height: 50px;" required>
+            </div>
+
+            <button type="submit" class="btn-primary" style="background: var(--secondary); width: 100%; margin-top: 1rem; box-shadow: 0 6px 16px rgba(234, 88, 12, 0.25); height: 48px; font-size: 1.05rem;">
+              <span>💾</span> تۆمارکردنی خەرجی
+            </button>
+          </form>
+        </div>
+
+        <!-- Expenses List -->
+        <div class="card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+            <div class="card-title" style="margin-bottom: 0;">
+              <span>📋</span> لیستی خەرجییەکانی ئەمڕۆ
+            </div>
+            <span id="expenses_today_total" class="badge badge-warning" style="font-size: 0.95rem;">0 د.ع</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>جۆر</th>
+                  <th>وەسف</th>
+                  <th>بڕ</th>
+                  <th>نرخی تاک</th>
+                  <th>کۆی خەرجی</th>
+                  <th>کردار</th>
+                </tr>
+              </thead>
+              <tbody id="expenses_table_body">
+                <!-- Injected via expenses.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 5: FINANCIAL REPORT (DAILY & MONTHLY) ==================== -->
+    <section id="tab_reports" class="tab-pane">
+      <!-- Report Mode Switcher -->
+      <div class="report-view-switcher">
+        <button type="button" id="btn_view_daily" class="report-view-btn active" data-mode="daily">
+          <span>📅</span> ڕاپۆرتی ڕۆژانە (Daily)
+        </button>
+        <button type="button" id="btn_view_monthly" class="report-view-btn" data-mode="monthly">
+          <span>🗓️</span> ڕاپۆرتی تەواوی مانگ و قازانجی ساف (Monthly Profit)
+        </button>
+      </div>
+
+      <!-- Date / Month Navigator Bar -->
+      <div class="report-date-bar">
+        <!-- Daily Controls -->
+        <div id="report_daily_controls" style="display: flex; align-items: center; gap: 0.5rem;">
+          <button type="button" id="report_prev_date" class="touch-btn icon-btn" title="ڕۆژی پێشوو">⟵</button>
+          <input type="date" id="report_date_picker" class="input-text" style="height: 40px; width: auto; font-weight: 700;">
+          <button type="button" id="report_next_date" class="touch-btn icon-btn" title="ڕۆژی دواتر">⟶</button>
+          <button type="button" id="report_today_btn" class="touch-btn" style="background: var(--surface-alt); padding: 0.3rem 0.8rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.85rem;">ئەمڕۆ</button>
+        </div>
+
+        <!-- Monthly Controls -->
+        <div id="report_monthly_controls" style="display: none; align-items: center; gap: 0.5rem;">
+          <input type="month" id="report_month_picker" class="input-text" style="height: 40px; width: auto; font-weight: 700;">
+          <button type="button" id="report_this_month_btn" class="touch-btn" style="background: var(--surface-alt); padding: 0.3rem 0.8rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.85rem;">ئەم مانگە</button>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" id="btn_export_csv" class="touch-btn" style="background: #0284c7; color: white; padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.9rem;">
+            📊 دابەزاندنی Excel
+          </button>
+          <button type="button" id="btn_print_z_report" class="touch-btn" style="background: var(--primary); color: white; padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 700; font-size: 0.9rem;">
+            🖨️ چاپی ڕاپۆرت (Z-Report)
+          </button>
+        </div>
+      </div>
+
+      <!-- Hero Net Profit Card -->
+      <div class="report-hero-card">
+        <div class="profit-title-row">
+          <div>
+            <div id="report_hero_title" style="font-size: 0.95rem; opacity: 0.9; font-weight: 700;">قازانجی سافی تەواوی ئەمڕۆ (Net Profit):</div>
+            <div id="report_hero_formula" style="font-size: 0.75rem; opacity: 0.75; margin-top: 2px;">
+              هاوکێشە = کۆی داهات − (تێچووی کڕین + خەرجییە کاتییەکان + کرێ و کارەبا + زیانی مرداربوونەوە)
+            </div>
+          </div>
+          <div id="report_hero_profit_status"></div>
+        </div>
+
+        <div id="report_hero_net_profit" class="profit-big-val positive">0 د.ع</div>
+
+        <div style="display: flex; gap: 2rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.95rem;">
+          <div>
+            <span style="opacity: 0.7;">کۆی داهات:</span>
+            <strong id="report_hero_gross_rev" style="color: #4ade80; margin-right: 0.4rem;">0 د.ع</strong>
+          </div>
+          <div>
+            <span style="opacity: 0.7;">کۆی تێچوو، خەرجی و زیان:</span>
+            <strong id="report_hero_total_cost" style="color: #f87171; margin-right: 0.4rem;">0 د.ع</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Core Report Cards Grid -->
+      <div class="report-cards-grid">
+        <!-- 1. Stock Status Card -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <div class="report-card-title">
+              <span>🐔</span> دۆخی کۆگا و مەخزەن
+            </div>
+          </div>
+          <div class="report-metric-list">
+            <div class="report-metric-item">
+              <span class="name" id="lbl_rep_received_cages">قەفەزی هاتووی ئەمڕۆ:</span>
+              <span class="number" id="rep_stock_received_count">0 قەفەز</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name" id="lbl_rep_received_weight">کۆی کێشی باری گەیشتوو:</span>
+              <span class="number" id="rep_stock_received_weight">0 کگم</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">مریشکی فرۆشراو:</span>
+              <span class="number" id="rep_stock_sold_count" style="color: var(--primary);">0 دانە</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">کێشی فرۆشراو:</span>
+              <span class="number" id="rep_stock_sold_weight" style="color: var(--primary);">0 کگم</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">مریشکی مرداربوو:</span>
+              <span class="number" id="rep_stock_dead_count" style="color: var(--danger);">0 دانە</span>
+            </div>
+            <div class="report-metric-item" style="border-top: 1.5px dashed var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+              <span class="name" style="font-weight: 800; color: var(--text-main);">کێشی مریشکی ماوە:</span>
+              <span class="number" id="rep_stock_remain_weight" style="font-weight: 900; color: var(--primary); font-size: 1.2rem;">0 کگم</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Income Breakdown Card -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <div class="report-card-title">
+              <span>💰</span> داهات
+            </div>
+          </div>
+          <div class="report-metric-list">
+            <div class="report-metric-item">
+              <span class="name">داهاتی فرۆشتنی گۆشت:</span>
+              <span class="number" id="rep_inc_meat">0 د.ع</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">داهاتی کرێی پاککردن:</span>
+              <span class="number" id="rep_inc_clean">0 د.ع</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">مریشکی پاککراو:</span>
+              <span class="number" id="rep_inc_cleaned_count">0 دانە</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">ژمارەی وەسڵەکان:</span>
+              <span class="number" id="rep_inc_trans_count">0 وەسڵ</span>
+            </div>
+            <div class="report-metric-item" style="border-top: 1.5px dashed var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+              <span class="name" style="font-weight: 800; color: var(--text-main);">کۆی گشتی داهات:</span>
+              <span class="number" id="rep_inc_total" style="font-weight: 900; color: var(--primary); font-size: 1.25rem;">0 د.ع</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Expenses & Cost Breakdown Card -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <div class="report-card-title">
+              <span>🛑</span> تێچوو، خەرجی و زیان
+            </div>
+          </div>
+          <div class="report-metric-list">
+            <div class="report-metric-item">
+              <span class="name">تێچووی کڕینی مریشکی فرۆشراو:</span>
+              <span class="number" id="rep_exp_cogs">0 د.ع</span>
+            </div>
+            <div class="report-metric-item" id="row_rep_exp_rent" style="display: none;">
+              <span class="name" style="font-weight: 700; color: var(--text-main);">🏢 کرێی شوێن / دوکان:</span>
+              <span class="number" id="rep_exp_rent" style="color: var(--secondary); font-weight: 800;">0 د.ع</span>
+            </div>
+            <div class="report-metric-item" id="row_rep_exp_elec" style="display: none;">
+              <span class="name" style="font-weight: 700; color: var(--text-main);">⚡ پارەی کارەبا:</span>
+              <span class="number" id="rep_exp_elec" style="color: var(--secondary); font-weight: 800;">0 د.ع</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name" id="lbl_rep_exp_adhoc">خەرجییە کاتییەکان (غاز، عەلاگە، عەلەف):</span>
+              <span class="number" id="rep_exp_adhoc">0 د.ع</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">زیانی دارایی مرداربوونەوە:</span>
+              <span class="number" id="rep_exp_dead" style="color: var(--danger);">0 د.ع</span>
+            </div>
+            <div class="report-metric-item" style="border-top: 1.5px dashed var(--border); padding-top: 0.5rem; margin-top: 0.25rem;">
+              <span class="name" style="font-weight: 800; color: var(--text-main);">کۆی گشتی خەرجی و زیان:</span>
+              <span class="number" id="rep_exp_total" style="font-weight: 900; color: var(--danger); font-size: 1.25rem;">0 د.ع</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Profit Margins -->
+        <div class="report-card">
+          <div class="report-card-header">
+            <div class="report-card-title">
+              <span>📈</span> قازانجی جیاکراوە
+            </div>
+          </div>
+          <div class="report-metric-list">
+            <div class="report-metric-item">
+              <span class="name">قازانجی کڕین و فرۆشتنی گۆشت:</span>
+              <span class="number" id="rep_margin_meat" style="color: var(--primary); font-weight: 800;">0 د.ع</span>
+            </div>
+            <div class="report-metric-item">
+              <span class="name">سوودی کرێی پاککردن (صافی):</span>
+              <span class="number" style="color: var(--secondary); font-weight: 800;">١٠٠٪ قازانج</span>
+            </div>
+            <div style="background: var(--surface-alt); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
+              💡 <strong>تێبینی ژمێریاری:</strong> تێچووی کڕین تەنها بۆ ئەو مریشکانە هەژمار کراوە کە فرۆشراون یان مرداربوون؛ خەرجی کرێ و کارەبا لە قازانجی گشتی دەردەکرێت.
+            </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== TAB 6: SETTINGS & BACKUP ==================== -->
+    <section id="tab_settings" class="tab-pane">
+      <div class="batches-grid">
+        <!-- Store Info & Pricing Form -->
+        <div class="card">
+          <div class="card-title">
+            <span>⚙️</span> ڕێکخستنەکانی دوکان و وەسڵ
+          </div>
+
+          <form id="settings_form">
+            <div class="pos-row">
+              <label class="form-label" for="setting_store_name">ناوی دوکان:</label>
+              <input type="text" id="setting_store_name" class="input-text" required>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="setting_phone">ژمارەی تەلەفۆن:</label>
+                <input type="text" id="setting_phone" class="input-text">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_address">ناونیشان / لقی سەرەکی:</label>
+                <input type="text" id="setting_address" class="input-text">
+              </div>
+            </div>
+
+            <div class="pos-row">
+              <label class="form-label" for="setting_receipt_header">سەردێڕی وەسڵ (Receipt Header):</label>
+              <input type="text" id="setting_receipt_header" class="input-text">
+            </div>
+
+            <div class="pos-row">
+              <label class="form-label" for="setting_receipt_footer">ژێردێڕی وەسڵ (Receipt Footer Slogan):</label>
+              <input type="text" id="setting_receipt_footer" class="input-text">
+            </div>
+
+            <div class="card-title" style="font-size: 1rem; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--primary);">
+              <span>✂️</span> نرخەکانی پاککردن و بڕین بەپێی جۆری پەلەوەر:
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="setting_cleaning_fee">🐔 مریشکی ناسک:</label>
+                <input type="number" min="0" id="setting_cleaning_fee" class="input-text" value="1500">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_cleaning_fee_old_chicken">🐓 مریشکی پیر:</label>
+                <input type="number" min="0" id="setting_cleaning_fee_old_chicken" class="input-text" value="2000">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_cleaning_fee_goose">🦆 قاز:</label>
+                <input type="number" min="0" id="setting_cleaning_fee_goose" class="input-text" value="3500">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_cleaning_fee_turkey">🦃 قەل:</label>
+                <input type="number" min="0" id="setting_cleaning_fee_turkey" class="input-text" value="5000">
+              </div>
+            </div>
+
+            <div class="card-title" style="font-size: 1rem; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--primary);">
+              <span>💰</span> نرخەکانی بنەڕەتی و کرێی مانگانە:
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
+              <div class="pos-row">
+                <label class="form-label" for="setting_monthly_rent">🏢 کرێی مانگانەی شوێن:</label>
+                <input type="number" min="0" id="setting_monthly_rent" class="input-text" value="350000">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_sell_price">نرخی فرۆشتنی ١ کگم (گۆشت):</label>
+                <input type="number" min="0" id="setting_sell_price" class="input-text" value="2750">
+              </div>
+              <div class="pos-row">
+                <label class="form-label" for="setting_buy_price">نرخی کڕینی ١ کگم (مەخزەن):</label>
+                <input type="number" min="0" id="setting_buy_price" class="input-text" value="2250">
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 1.5rem; margin: 1rem 0;">
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 700;">
+                <input type="checkbox" id="setting_auto_print">
+                <span>چاپکردنی ئۆتۆماتیکی وەسڵ لەگەڵ فرۆشتن</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 700;">
+                <input type="checkbox" id="setting_sound_enabled" checked>
+                <span>دەنگ و لەرینەوەی لەمس</span>
+              </label>
+            </div>
+
+            <button type="submit" class="btn-primary" style="width: 100%;">
+              <span>💾</span> پاشەکەوتکردنی ڕێکخستنەکان
+            </button>
+          </form>
+        </div>
+
+        <!-- Data Backup & Actions -->
+        <div class="card">
+          <div class="card-title">
+            <span>💾</span> پاراستن و پاشەکەوتی داتاکان (Backup & Restore)
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">
+            سیستەمەکەت بە تەواوی لەسەر میمۆری ئەم ئامێرە کاردەکات و پێویستی بە ئینتەرنێت نییە. دەتوانیت لە خوارەوە پاشەکەوتی تەواوی داتاکان دەربکەیت یان بگەڕێنیتەوە.
+          </p>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <button type="button" id="btn_export_backup" class="btn-secondary" style="justify-content: flex-start; padding: 0 1.25rem;">
+              <span style="font-size: 1.3rem;">📥</span>
+              <div style="text-align: right;">
+                <div style="font-weight: 800;">دەرهێنانی فایلی پاشەکەوت (Export Backup JSON)</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">داگرتنی هەموو فرۆشتن، بار و خەرجییەکان لە فایلی داتابەیس</div>
+              </div>
+            </button>
+
+            <input type="file" id="import_file_input" accept=".json" style="display: none;">
+            <button type="button" id="btn_trigger_import" class="btn-secondary" style="justify-content: flex-start; padding: 0 1.25rem;">
+              <span style="font-size: 1.3rem;">📤</span>
+              <div style="text-align: right;">
+                <div style="font-weight: 800;">گەڕاندنەوەی پاشەکەوت لە فایل (Restore JSON Backup)</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">گەڕاندنەوەی داتاکان لە فایلی پێشوو</div>
+              </div>
+            </button>
+
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+
+            <button type="button" id="btn_seed_demo" class="btn-secondary" style="background: #f0fdf4; border-color: #bbf7d0; color: #166534; justify-content: flex-start; padding: 0 1.25rem;">
+              <span style="font-size: 1.3rem;">✨</span>
+              <div style="text-align: right;">
+                <div style="font-weight: 800;">بارکردنی داتای نموونەیی (Seed Demo Data)</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">پڕکردنەوەی یەک کلیکی باری نموونەیی و چەند فرۆشتنێک بۆ تاقیکردنەوە</div>
+              </div>
+            </button>
+
+            <button type="button" id="btn_clear_all" class="btn-secondary" style="background: var(--danger-light); border-color: #fecaca; color: var(--danger); justify-content: flex-start; padding: 0 1.25rem;">
+              <span style="font-size: 1.3rem;">🗑️</span>
+              <div style="text-align: right;">
+                <div style="font-weight: 800;">سڕینەوەی هەموو داتاکان (Clear Database)</div>
+                <div style="font-size: 0.75rem; color: var(--danger);">سڕینەوەی تەواوی تۆمارەکان و دەستپێکردنەوە لەسەرەتاوە</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== RECEIPT / PRINT MODAL ==================== -->
+  <div id="receipt_modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header no-print">
+        <div style="font-weight: 800; font-size: 1.05rem;">وەسڵی چاپکردن (Thermal Receipt)</div>
+        <button type="button" class="btn-close-modal action-mini-btn">✕</button>
+      </div>
+      <div class="modal-body" id="receipt_modal_content">
+        <!-- Injected dynamically -->
+      </div>
+      <div class="modal-footer no-print">
+        <button type="button" class="btn-secondary btn-close-modal" style="height: 44px;">داخستن</button>
+        <button type="button" class="btn-primary" style="height: 44px; padding: 0 1.5rem;" onclick="window.print()">
+          🖨️ چاپکردن (Print)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SMART PRICING ADVISOR MODAL ==================== -->
+  <div id="smart_pricing_modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 680px;">
+      <div class="modal-header no-print">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.4rem;">💡</span>
+          <div>
+            <div style="font-weight: 800; font-size: 1.1rem;">ڕاوێژکاری زیرەکی نرخ و پێشبینی قازانج</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">ستراتیژییەکانی هەرزانفرۆشی، بازاڕشکێن و بەرزکردنەوەی قازانجی ساف</div>
+          </div>
+        </div>
+        <button type="button" class="btn-close-modal action-mini-btn">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem;">
+        <!-- Preset Strategies Recommended for Today -->
+        <div style="font-weight: 800; margin-bottom: 0.6rem; color: var(--primary); font-size: 1rem;">
+          🎯 ستراتیژییە پێشنیارکراوەکانی ئەمڕۆ بەپێی باری مەخزەن:
+        </div>
+        <div id="modal_strategies_list">
+          <!-- Injected dynamically via advisor.js -->
+        </div>
+
+        <hr style="margin: 1.25rem 0; border: none; border-top: 1px solid var(--border);">
+
+        <!-- Interactive Profit Simulator -->
+        <div style="font-weight: 800; margin-bottom: 0.6rem; color: var(--text-main); display: flex; justify-content: space-between; align-items: center;">
+          <span>🧮 ژمێریاری تاقیکردنەوەی نرخ و قازانج (Profit Simulator):</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">نرخ بنووسە بۆ تاقیکردنەوە</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem;">
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">نرخی کڕینی ١ کگم:</label>
+            <input type="number" min="0" id="sim_buy_price" class="input-text" style="font-weight: 700;">
+          </div>
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">نرخی فرۆشتنی ١ کگم:</label>
+            <input type="number" min="0" id="sim_sell_price" class="input-text" style="font-weight: 800; color: var(--primary);">
+          </div>
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">ژمارەی مریشک:</label>
+            <input type="number" min="1" id="sim_bird_count" class="input-text" value="65">
+          </div>
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">تێکڕای کێش (کگم):</label>
+            <input type="number" step="0.1" min="0.5" id="sim_avg_weight" class="input-text" value="2.3">
+          </div>
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">کرێی پاککردن:</label>
+            <input type="number" min="0" id="sim_cleaning_fee" class="input-text" value="1500">
+          </div>
+          <div class="pos-row">
+            <label class="form-label" style="font-size: 0.78rem;">٪ـی پاککراو:</label>
+            <input type="number" min="0" max="100" id="sim_clean_percent" class="input-text" value="90">
+          </div>
+        </div>
+
+        <!-- Simulator Live Result Card -->
+        <div class="sim-result-card" style="margin-top: 1rem; background: var(--surface-alt); border: 2px solid var(--border); border-radius: var(--radius-lg); padding: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; text-align: center;">
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">داهاتی فرۆشتنی گۆشت</div>
+              <div id="sim_res_meat_rev" style="font-weight: 800; font-size: 1rem;">0 د.ع</div>
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">داهاتی پاککردن</div>
+              <div id="sim_res_clean_rev" style="font-weight: 800; font-size: 1rem; color: #b45309;">0 د.ع</div>
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: var(--text-muted);">کۆی تێچووی بار</div>
+              <div id="sim_res_total_cost" style="font-weight: 800; font-size: 1rem; color: #b91c1c;">0 د.ع</div>
+            </div>
+            <div style="background: white; border-radius: var(--radius-md); padding: 0.4rem; border: 1.5px solid var(--border);">
+              <div style="font-size: 0.75rem; color: var(--text-muted);">قازانجی سافی گشتی</div>
+              <div id="sim_res_net_profit" style="font-weight: 900; font-size: 1.2rem; color: var(--primary);">0 د.ع</div>
+            </div>
+          </div>
+          <div id="sim_res_insight" style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border);">
+            <!-- Dynamic insight message -->
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer no-print">
+        <button type="button" class="btn-secondary btn-close-modal" style="height: 44px;">داخستن</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast_container" class="toast-container no-print"></div>
+
+  <!-- Scripts with Cache Busting -->
+  <script src="js/db.js?v=6.0"></script>
+  <script src="js/pos.js?v=6.0"></script>
+  <script src="js/advisor.js?v=6.0"></script>
+  <script src="js/batches.js?v=6.0"></script>
+  <script src="js/losses.js?v=6.0"></script>
+  <script src="js/expenses.js?v=6.0"></script>
+  <script src="js/reports.js?v=6.0"></script>
+  <script src="js/app.js?v=6.0"></script>
+</body>
+</html>
