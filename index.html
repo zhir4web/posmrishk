@@ -559,10 +559,10 @@
             </button>
           </div>
 
-          <form id="expense_entry_form">
+          <form id="expense_entry_form" onsubmit="return false;">
             <div class="pos-row">
               <label class="form-label" for="expense_description">وەسفی خەرجی:</label>
-              <input type="text" id="expense_description" class="input-text" placeholder="وەسفی خەرجی بنووسە" required>
+              <input type="text" id="expense_description" class="input-text" placeholder="وەسفی خەرجی (بۆ نموونە: کرێ، کارەبا، غاز...)">
             </div>
 
             <!-- Optional Quantity/Weight Row (only for Gas, Feed, Bags) -->
@@ -580,10 +580,10 @@
             <!-- Direct Amount Input (Clean and Large) -->
             <div class="pos-row">
               <label class="form-label" id="expense_total_label" for="expense_total_cost" style="font-weight: 800;">بڕی پارەی خەرجی (دینار):</label>
-              <input type="number" min="0" id="expense_total_cost" class="input-text" placeholder="بۆ نموونە: 350000" style="font-size: 1.3rem; font-weight: 800; color: var(--danger); height: 50px;" required>
+              <input type="number" min="0" id="expense_total_cost" class="input-text" placeholder="بۆ نموونە: 350000" style="font-size: 1.3rem; font-weight: 800; color: var(--danger); height: 50px;">
             </div>
 
-            <button type="submit" class="btn-primary" style="background: var(--secondary); width: 100%; margin-top: 1rem; box-shadow: 0 6px 16px rgba(234, 88, 12, 0.25); height: 48px; font-size: 1.05rem;">
+            <button type="button" id="btn_submit_expense" class="btn-primary" style="background: var(--secondary); width: 100%; margin-top: 1rem; box-shadow: 0 6px 16px rgba(234, 88, 12, 0.25); height: 52px; font-size: 1.1rem;">
               <span>💾</span> تۆمارکردنی خەرجی
             </button>
           </form>

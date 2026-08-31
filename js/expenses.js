@@ -14,11 +14,13 @@ class ExpensesModule {
     this.setPreset('غاز');
     this.renderExpensesTable();
 
-    window.db.subscribe((event) => {
-      if (['expenses_updated', 'all_data_restored', 'settings_updated'].includes(event)) {
-        this.renderExpensesTable();
-      }
-    });
+    if (window.db) {
+      window.db.subscribe((event) => {
+        if (['expenses_updated', 'all_data_restored', 'settings_updated'].includes(event)) {
+          this.renderExpensesTable();
+        }
+      });
+    }
   }
 
   bindEvents() {
@@ -27,11 +29,20 @@ class ExpensesModule {
       btn.addEventListener('click', (e) => {
         const cat = e.currentTarget.getAttribute('data-category');
         this.setPreset(cat);
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     });
 
-    // Submit form
+    // Submit button (direct click)
+    const submitBtn = document.getElementById('btn_submit_expense');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.submitExpense();
+      });
+    }
+
+    // Submit form fallback
     const form = document.getElementById('expense_entry_form');
     if (form) {
       form.addEventListener('submit', (e) => {
@@ -57,7 +68,7 @@ class ExpensesModule {
     const totalCostInput = document.getElementById('expense_total_cost');
     const totalLabel = document.getElementById('expense_total_label');
 
-    const settings = window.db.getSettings();
+    const settings = window.db ? window.db.getSettings() : { monthly_rent: 350000 };
 
     if (category === 'کرێی دوکان') {
       const rent = settings.monthly_rent || 350000;
@@ -77,7 +88,7 @@ class ExpensesModule {
       if (qtyInput) qtyInput.value = '1';
       if (totalCostInput) {
         totalCostInput.value = '';
-        totalCostInput.placeholder = 'بۆ نموونە: 120000';
+        totalCostInput.placeholder = 'بڕی پارەی پسوولەی کارەبا بنووسە...';
       }
       if (totalLabel) totalLabel.textContent = '⚡ بڕی پارەی پسوولەی کارەبا (دینار):';
     } else if (category === 'غاز') {
@@ -114,7 +125,7 @@ class ExpensesModule {
       }
       if (totalLabel) totalLabel.textContent = '🌾 کۆی پارەی عەلەف (دینار):';
     } else {
-      if (descInput) descInput.value = '';
+      if (descInput) descInput.value = 'خەرجی گشتی';
       if (qtyWrapper) qtyWrapper.style.display = 'none';
       if (unitTypeInput) unitTypeInput.value = 'پارە';
       if (qtyInput) qtyInput.value = '1';
@@ -127,44 +138,67 @@ class ExpensesModule {
   }
 
   submitExpense() {
-    const desc = document.getElementById('expense_description').value.trim();
-    const unitType = document.getElementById('expense_unit_type').value.trim();
-    const qty = parseFloat(document.getElementById('expense_qty').value) || 1;
-    const totalCost = parseFloat(document.getElementById('expense_total_cost').value) || 0;
+    try {
+      const descInput = document.getElementById('expense_description');
+      const unitTypeInput = document.getElementById('expense_unit_type');
+      const qtyInput = document.getElementById('expense_qty');
+      const totalCostInput = document.getElementById('expense_total_cost');
 
-    if (totalCost <= 0) {
-      window.app.showToast('تکایە بڕی پارەی خەرجی بە درووستی بنووسە', 'warning');
-      return;
+      let desc = descInput ? descInput.value.trim() : '';
+      if (!desc) desc = this.selectedCategory || 'خەرجی گشتی';
+
+      let unitType = unitTypeInput ? unitTypeInput.value.trim() : 'بڕی پارە';
+      let qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
+      qty = Math.max(0.01, Math.abs(qty));
+
+      let totalCost = totalCostInput ? (parseFloat(totalCostInput.value) || 0) : 0;
+      totalCost = Math.max(0, Math.abs(totalCost));
+
+      if (totalCost <= 0) {
+        if (window.app) window.app.showToast('تکایە بڕی پارەی خەرجی بە دینار بنووسە', 'warning');
+        if (totalCostInput) totalCostInput.focus();
+        return;
+      }
+
+      const expenseData = {
+        category: this.selectedCategory || 'خەرجی تر',
+        description: desc,
+        unit_type: unitType || 'بڕی پارە',
+        quantity: qty,
+        unit_price: Math.round(totalCost / (qty || 1)),
+        total_cost: totalCost
+      };
+
+      if (window.db) {
+        window.db.saveExpense(expenseData);
+      }
+
+      if (window.app) {
+        window.app.playSound('cash');
+        window.app.showToast(`خەرجی (${expenseData.description} - ${totalCost.toLocaleString()} د.ع) تۆمارکرا`, 'success');
+      }
+
+      // Reset form to preset
+      this.setPreset(this.selectedCategory);
+    } catch (err) {
+      console.error('Error submitting expense:', err);
+      if (window.app) window.app.showToast('کێشەیەک ڕوویدا لە تۆمارکردن', 'danger');
     }
-
-    const expenseData = {
-      category: this.selectedCategory,
-      description: desc || this.selectedCategory,
-      unit_type: unitType || 'بڕی پارە',
-      quantity: qty,
-      unit_price: totalCost / (qty || 1),
-      total_cost: totalCost
-    };
-
-    const saved = window.db.saveExpense(expenseData);
-    window.app.playSound('cash');
-    window.app.showToast(`خەرجی (${expenseData.description}) تۆمارکرا`, 'success');
-
-    // Reset preset
-    this.setPreset(this.selectedCategory);
   }
 
   renderExpensesTable() {
     const tbody = document.getElementById('expenses_table_body');
     const todayTotalBadge = document.getElementById('expenses_today_total');
-    if (!tbody) return;
+    if (!tbody || !window.db) return;
+
+    const expenses = window.db.getExpenses();
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const expenses = window.db.getExpensesByDate(todayStr);
+    const todayExpenses = expenses.filter(e => (e.timestamp || '').startsWith(todayStr));
+    const todayTotal = todayExpenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
 
-    const totalCost = expenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
     if (todayTotalBadge) {
-      todayTotalBadge.textContent = `${totalCost.toLocaleString()} د.ع`;
+      todayTotalBadge.textContent = `${todayTotal.toLocaleString()} د.ع`;
     }
 
     if (expenses.length === 0) {
@@ -172,7 +206,7 @@ class ExpensesModule {
         <tr>
           <td colspan="6" class="empty-state">
             <div class="empty-icon">💸</div>
-            <div class="empty-title">هیچ خەرجییەک بۆ ئەمڕۆ تۆمار نەکراوە</div>
+            <div class="empty-title">هیچ خەرجییەک تۆمار نەکراوە</div>
             <div class="empty-sub">لەسەرەوە جۆری خەرجی دیاریبکە و تۆماری بکە</div>
           </td>
         </tr>
@@ -180,7 +214,7 @@ class ExpensesModule {
       return;
     }
 
-    tbody.innerHTML = expenses.map(exp => {
+    tbody.innerHTML = expenses.slice(0, 50).map(exp => {
       let icon = '💸';
       if (exp.category === 'کرێی دوکان') icon = '🏢';
       else if (exp.category === 'کارەبا') icon = '⚡';
@@ -191,10 +225,19 @@ class ExpensesModule {
       const isMonthly = exp.category === 'کرێی دوکان' || exp.category === 'کارەبا';
       const badgeClass = isMonthly ? 'badge-primary' : 'badge-warning';
 
+      let timeLabel = '';
+      try {
+        const d = new Date(exp.timestamp);
+        timeLabel = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+      } catch (e) {
+        timeLabel = '';
+      }
+
       return `
         <tr>
           <td>
             <span class="badge ${badgeClass}">${icon} ${exp.category}</span>
+            ${timeLabel ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${timeLabel}</div>` : ''}
           </td>
           <td><strong>${exp.description}</strong></td>
           <td>${exp.quantity} ${exp.unit_type || ''}</td>
@@ -212,11 +255,14 @@ class ExpensesModule {
 
   deleteExpense(id) {
     if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم خەرجییە؟')) {
-      window.db.deleteExpense(id);
-      window.app.playSound('delete');
-      window.app.showToast('خەرجی سڕایەوە', 'info');
+      if (window.db) window.db.deleteExpense(id);
+      if (window.app) {
+        window.app.playSound('delete');
+        window.app.showToast('خەرجی سڕایەوە', 'info');
+      }
     }
   }
 }
 
+// Global instance
 window.expenses = new ExpensesModule();
