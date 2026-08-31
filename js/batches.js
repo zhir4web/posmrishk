@@ -1,6 +1,7 @@
 /**
- * Sargalu Chicken POS - Simplified Batches Module (داخڵکردنی باری نوێ - مەخزەن)
- * Simplified fields: Cages count, Total weight, Buy price, Sell price & Total cost
+ * Sargalu Chicken POS - Batches Module (داخڵکردنی باری نوێ - مەخزەن)
+ * Simplified fields: Cages count, Total chickens, Total weight, Buy price, Sell price & Total cost
+ * Asia/Baghdad timezone, live remaining stock, XSS safety
  */
 
 class BatchesModule {
@@ -13,17 +14,19 @@ class BatchesModule {
     this.renderBatchesList();
     this.setDefaultDate();
 
-    window.db.subscribe((event) => {
-      if (['batches_updated', 'active_batch_changed'].includes(event)) {
-        this.renderBatchesList();
-      }
-    });
+    if (window.db) {
+      window.db.subscribe((event) => {
+        if (['batches_updated', 'active_batch_changed', 'sales_updated', 'losses_updated', 'all_data_restored'].includes(event)) {
+          this.renderBatchesList();
+        }
+      });
+    }
   }
 
   setDefaultDate() {
     const dateInput = document.getElementById('batch_date');
     if (dateInput && !dateInput.value) {
-      dateInput.value = new Date().toISOString().slice(0, 10);
+      dateInput.value = getBaghdadDate();
     }
   }
 
@@ -73,23 +76,25 @@ class BatchesModule {
 
   saveBatch() {
     const poultryType = document.getElementById('batch_poultry_type')?.value || 'مریشکی ناسک';
-    const date = document.getElementById('batch_date').value || new Date().toISOString().slice(0, 10);
-    const cagesCount = parseInt(document.getElementById('batch_cages_count')?.value || 0, 10) || 0;
-    const totalChickens = parseInt(document.getElementById('batch_total_chickens')?.value || 0, 10) || Math.max(1, Math.round(cagesCount * 25));
+    const dateInput = document.getElementById('batch_date')?.value;
+    const date = dateInput ? getBaghdadDate(dateInput) : getBaghdadDate();
+    const cagesCount = parseInt(document.getElementById('batch_cages_count')?.value || 0, 10);
+    const rawChickens = parseInt(document.getElementById('batch_total_chickens')?.value || 0, 10);
+    const totalChickens = rawChickens > 0 ? rawChickens : Math.max(1, cagesCount * 25);
     const totalWeight = parseFloat(document.getElementById('batch_total_weight')?.value || 0);
     const buyPrice = parseFloat(document.getElementById('batch_buy_price')?.value || 0);
     const sellPrice = parseFloat(document.getElementById('batch_sell_price')?.value || 0);
 
-    if (cagesCount <= 0) {
-      window.app.showToast('تکایە ژمارەی قەفەزەکان دیاری بکە', 'warning');
+    if (isNaN(cagesCount) || cagesCount <= 0) {
+      if (window.app) window.app.showToast('تکایە ژمارەی قەفەزەکان بە درووستی دیاری بکە', 'warning');
       return;
     }
-    if (totalWeight <= 0) {
-      window.app.showToast('تکایە کۆی کێشی بارەکە دیاری بکە', 'warning');
+    if (isNaN(totalWeight) || totalWeight <= 0) {
+      if (window.app) window.app.showToast('تکایە کۆی کێشی بارەکە بە درووستی دیاری بکە', 'warning');
       return;
     }
-    if (buyPrice <= 0 || sellPrice <= 0) {
-      window.app.showToast('تکایە نرخی کڕین و فرۆشتن داخڵ بکە', 'warning');
+    if (isNaN(buyPrice) || buyPrice <= 0 || isNaN(sellPrice) || sellPrice <= 0) {
+      if (window.app) window.app.showToast('تکایە نرخی کڕین و فرۆشتن بە درووستی بنووسە', 'warning');
       return;
     }
 
@@ -106,20 +111,30 @@ class BatchesModule {
       sell_price_per_kg: sellPrice
     };
 
-    const saved = window.db.saveBatch(batchData);
-    window.app.playSound('success');
-    window.app.showToast(`باری (${poultryType} - ${date}) بە سەرکەوتوویی تۆمارکرا`, 'success');
+    try {
+      const saved = window.db.saveBatch(batchData);
+      if (window.app) {
+        window.app.playSound('success');
+        window.app.showToast(`باری (${poultryType} - ${date}) بە سەرکەوتوویی تۆمارکرا`, 'success');
+      }
 
-    // Reset Form fields
-    document.getElementById('batch_cages_count').value = '3';
-    document.getElementById('batch_total_chickens').value = '80';
-    document.getElementById('batch_total_weight').value = '';
-    this.updateBatchCalculations();
+      // Reset Form fields
+      document.getElementById('batch_cages_count').value = '3';
+      document.getElementById('batch_total_chickens').value = '80';
+      document.getElementById('batch_total_weight').value = '';
+      this.updateBatchCalculations();
+    } catch (err) {
+      console.error('Batch save error:', err);
+      if (window.app) {
+        window.app.playSound('warning');
+        window.app.showToast(err.message || 'هەڵەیەک ڕوویدا لە تۆمارکردنی بار', 'danger');
+      }
+    }
   }
 
   renderBatchesList() {
     const listEl = document.getElementById('batches_table_body');
-    if (!listEl) return;
+    if (!listEl || !window.db) return;
 
     const batches = window.db.getBatches();
     const activeBatch = window.db.getActiveBatch();
@@ -141,6 +156,10 @@ class BatchesModule {
       const totalCost = b.total_cost || (b.total_weight_kg * b.buy_price_per_kg);
       const pType = b.poultry_type || 'مریشکی ناسک';
 
+      const stock = window.db.getBatchStock(b.batch_id);
+      const remWeight = stock ? stock.remaining_weight : b.total_weight_kg;
+      const remCount = stock ? stock.remaining_count : (b.total_chickens || 0);
+
       let icon = '🐔';
       if (pType === 'مریشکی پیر') icon = '🐓';
       else if (pType === 'قاز') icon = '🦆';
@@ -149,23 +168,28 @@ class BatchesModule {
       return `
         <tr style="${isActive ? 'background-color: #f0fdf4;' : ''}">
           <td>
-            <strong>${b.date}</strong>
-            <span class="badge badge-neutral" style="margin-right: 0.25rem;">${icon} ${pType}</span>
+            <strong>${escapeHtml(b.date)}</strong>
+            <span class="badge badge-neutral" style="margin-right: 0.25rem;">${icon} ${escapeHtml(pType)}</span>
             ${isActive ? '<span class="badge badge-success" style="margin-right: 0.25rem;">باری کارا</span>' : ''}
           </td>
-          <td><strong>${cagesCount}</strong> قەفەز</td>
-          <td><strong>${b.total_weight_kg}</strong> کگم</td>
-          <td>${b.buy_price_per_kg.toLocaleString()} د.ع</td>
-          <td><strong style="color: var(--primary);">${b.sell_price_per_kg.toLocaleString()} د.ع</strong></td>
+          <td><strong>${cagesCount}</strong> قەفەز (${b.total_chickens || cagesCount * 25} دانە)</td>
+          <td>
+            <div><strong>${b.total_weight_kg}</strong> کگم</div>
+            <div style="font-size: 0.75rem; color: ${remWeight <= 0 ? 'var(--danger)' : 'var(--primary)'}; font-weight: 700;">
+              ماوە: ${remWeight} کگم (${remCount} دانە)
+            </div>
+          </td>
+          <td>${Number(b.buy_price_per_kg).toLocaleString()} د.ع</td>
+          <td><strong style="color: var(--primary);">${Number(b.sell_price_per_kg).toLocaleString()} د.ع</strong></td>
           <td><strong style="color: var(--danger);">${Math.round(totalCost).toLocaleString()} د.ع</strong></td>
           <td>
             <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
               ${!isActive ? `
-                <button class="touch-btn" onclick="window.db.setActiveBatch('${b.batch_id}')" style="background: var(--surface-alt); padding: 0.25rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700;">
+                <button type="button" class="touch-btn" onclick="window.db.setActiveBatch('${escapeHtml(b.batch_id)}')" style="background: var(--surface-alt); padding: 0.25rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700;">
                   کاراکردن
                 </button>
               ` : ''}
-              <button class="action-mini-btn delete" title="سڕینەوە" onclick="window.batches.confirmDeleteBatch('${b.batch_id}')">
+              <button type="button" class="action-mini-btn delete" title="سڕینەوە" onclick="window.batches.confirmDeleteBatch('${escapeHtml(b.batch_id)}')">
                 ✕
               </button>
             </div>
@@ -178,10 +202,13 @@ class BatchesModule {
   confirmDeleteBatch(batchId) {
     if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم بارە؟')) {
       window.db.deleteBatch(batchId);
-      window.app.showToast('بارەکە سڕایەوە', 'danger');
-      window.app.playSound('delete');
+      if (window.app) {
+        window.app.showToast('بارەکە سڕایەوە', 'danger');
+        window.app.playSound('delete');
+      }
     }
   }
 }
 
+// Global instance
 window.batches = new BatchesModule();

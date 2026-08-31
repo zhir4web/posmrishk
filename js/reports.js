@@ -1,13 +1,14 @@
 /**
  * Sargalu Chicken POS - Financial Reports & Net Profit Calculator (ڕاپۆرتی دارایی ڕۆژانە و مانگانە)
- * Stock Reconciliation, Revenue Breakdown, Rent, Electricity, Operating Costs, Net Profit & Z-Report
+ * Stock Reconciliation, Revenue Breakdown, Operating Costs, Net Profit & Z-Report
+ * Asia/Baghdad timezone, cross-day stock accounting, XSS safety
  */
 
 class ReportsModule {
   constructor() {
     this.currentMode = 'daily'; // 'daily' or 'monthly'
-    this.currentDate = new Date().toISOString().slice(0, 10);
-    this.currentMonth = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+    this.currentDate = getBaghdadDate();
+    this.currentMonth = getBaghdadMonth();
     this.init();
   }
 
@@ -15,11 +16,13 @@ class ReportsModule {
     this.bindEvents();
     this.renderReport();
 
-    window.db.subscribe((event) => {
-      if (['sales_updated', 'losses_updated', 'expenses_updated', 'batches_updated', 'all_data_restored', 'settings_updated'].includes(event)) {
-        this.renderReport();
-      }
-    });
+    if (window.db) {
+      window.db.subscribe((event) => {
+        if (['sales_updated', 'losses_updated', 'expenses_updated', 'batches_updated', 'all_data_restored', 'settings_updated'].includes(event)) {
+          this.renderReport();
+        }
+      });
+    }
   }
 
   bindEvents() {
@@ -37,7 +40,7 @@ class ReportsModule {
         if (dailyControls) dailyControls.style.display = 'flex';
         if (monthlyControls) monthlyControls.style.display = 'none';
         this.renderReport();
-        window.app.playSound('tab');
+        if (window.app) window.app.playSound('tab');
       });
 
       monthlyBtn.addEventListener('click', () => {
@@ -47,7 +50,7 @@ class ReportsModule {
         if (dailyControls) dailyControls.style.display = 'none';
         if (monthlyControls) monthlyControls.style.display = 'flex';
         this.renderReport();
-        window.app.playSound('tab');
+        if (window.app) window.app.playSound('tab');
       });
     }
 
@@ -56,9 +59,9 @@ class ReportsModule {
     if (dateInput) {
       dateInput.value = this.currentDate;
       dateInput.addEventListener('change', (e) => {
-        this.currentDate = e.target.value;
+        this.currentDate = getBaghdadDate(e.target.value);
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
@@ -67,9 +70,9 @@ class ReportsModule {
     if (monthInput) {
       monthInput.value = this.currentMonth;
       monthInput.addEventListener('change', (e) => {
-        this.currentMonth = e.target.value;
+        this.currentMonth = (e.target.value || getBaghdadMonth()).slice(0, 7);
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
@@ -81,41 +84,43 @@ class ReportsModule {
 
     if (prevBtn) {
       prevBtn.addEventListener('click', () => {
-        const d = new Date(this.currentDate);
-        d.setDate(d.getDate() - 1);
-        this.currentDate = d.toISOString().slice(0, 10);
+        const [y, m, d] = (this.currentDate || getBaghdadDate()).split('-').map(Number);
+        const dateObj = new Date(Date.UTC(y, m - 1, d));
+        dateObj.setUTCDate(dateObj.getUTCDate() - 1);
+        this.currentDate = dateObj.toISOString().slice(0, 10);
         if (dateInput) dateInput.value = this.currentDate;
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
     if (nextBtn) {
       nextBtn.addEventListener('click', () => {
-        const d = new Date(this.currentDate);
-        d.setDate(d.getDate() + 1);
-        this.currentDate = d.toISOString().slice(0, 10);
+        const [y, m, d] = (this.currentDate || getBaghdadDate()).split('-').map(Number);
+        const dateObj = new Date(Date.UTC(y, m - 1, d));
+        dateObj.setUTCDate(dateObj.getUTCDate() + 1);
+        this.currentDate = dateObj.toISOString().slice(0, 10);
         if (dateInput) dateInput.value = this.currentDate;
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
     if (todayBtn) {
       todayBtn.addEventListener('click', () => {
-        this.currentDate = new Date().toISOString().slice(0, 10);
+        this.currentDate = getBaghdadDate();
         if (dateInput) dateInput.value = this.currentDate;
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
     if (thisMonthBtn) {
       thisMonthBtn.addEventListener('click', () => {
-        this.currentMonth = new Date().toISOString().slice(0, 7);
+        this.currentMonth = getBaghdadMonth();
         if (monthInput) monthInput.value = this.currentMonth;
         this.renderReport();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
@@ -137,6 +142,7 @@ class ReportsModule {
   }
 
   renderReport() {
+    if (!window.db) return;
     if (this.currentMode === 'monthly') {
       this.renderMonthlyReport();
     } else {
@@ -195,7 +201,12 @@ class ReportsModule {
     if (stockSoldCount) stockSoldCount.textContent = `${report.stock.sold_count} دانە`;
     if (stockSoldWeight) stockSoldWeight.textContent = `${report.stock.sold_weight} کگم`;
     if (stockDeadCount) stockDeadCount.textContent = `${report.stock.dead_count} دانە`;
-    if (stockRemainWeight) stockRemainWeight.textContent = `${report.stock.remaining_weight} کگم`;
+    
+    if (stockRemainWeight) {
+      const isShortfall = report.stock.remaining_weight < 0;
+      stockRemainWeight.textContent = `${report.stock.remaining_weight} کگم`;
+      stockRemainWeight.style.color = isShortfall ? 'var(--danger)' : 'var(--primary)';
+    }
 
     // Income Card
     const incMeat = document.getElementById('rep_inc_meat');
@@ -285,7 +296,12 @@ class ReportsModule {
     if (stockSoldCount) stockSoldCount.textContent = `${report.stock.sold_count} دانە`;
     if (stockSoldWeight) stockSoldWeight.textContent = `${report.stock.sold_weight} کگم`;
     if (stockDeadCount) stockDeadCount.textContent = `${report.stock.dead_count} دانە`;
-    if (stockRemainWeight) stockRemainWeight.textContent = `${report.stock.remaining_weight} کگم`;
+    
+    if (stockRemainWeight) {
+      const isShortfall = report.stock.remaining_weight < 0;
+      stockRemainWeight.textContent = `${report.stock.remaining_weight} کگم`;
+      stockRemainWeight.style.color = isShortfall ? 'var(--danger)' : 'var(--primary)';
+    }
 
     // Income Card
     const incMeat = document.getElementById('rep_inc_meat');
@@ -334,13 +350,14 @@ class ReportsModule {
     const settings = window.db.getSettings();
 
     const titleStr = isMonthly ? `ڕاپۆرتی دارایی تەواوی مانگ (${report.month})` : `ڕاپۆرتی دارایی ڕۆژانە (${report.date})`;
+    const currentTimeStr = `${getBaghdadDate()} ${getBaghdadTime()}`;
 
     const zReportHtml = `
       <div class="receipt-paper print-area" id="printable_z_report">
         <div class="receipt-header">
-          <div class="shop-title">${settings.receipt_header || settings.store_name}</div>
-          <div style="font-weight: 800; font-size: 1rem; margin-top: 4px;">${titleStr}</div>
-          <div class="shop-meta">بەروار: ${isMonthly ? report.month : report.date}</div>
+          <div class="shop-title">${escapeHtml(settings.receipt_header || settings.store_name)}</div>
+          <div style="font-weight: 800; font-size: 1rem; margin-top: 4px;">${escapeHtml(titleStr)}</div>
+          <div class="shop-meta">بەروار: ${escapeHtml(isMonthly ? report.month : report.date)}</div>
         </div>
 
         <div style="font-weight: 800; font-size: 0.9rem; margin-bottom: 4px; border-bottom: 1px dashed #999;">١. دۆخی مەخزەن و مریشک</div>
@@ -356,8 +373,8 @@ class ReportsModule {
           <span>مریشکی مرداربوو:</span>
           <span><strong>${report.stock.dead_count}</strong> دانە (${report.stock.dead_weight} کگم)</span>
         </div>
-        <div class="receipt-info-row" style="color: var(--primary); font-weight: 800;">
-          <span>کێشی ماوە:</span>
+        <div class="receipt-info-row" style="color: ${report.stock.remaining_weight < 0 ? '#b91c1c' : 'var(--primary)'}; font-weight: 800;">
+          <span>کێشی ماوە لە مەخزەن:</span>
           <span><strong>${report.stock.remaining_weight}</strong> کگم</span>
         </div>
 
@@ -416,7 +433,7 @@ class ReportsModule {
         </div>
 
         <div class="receipt-footer">
-          <div>کاتی چاپکردن: ${new Date().toLocaleTimeString('ar-IQ')}</div>
+          <div>کاتی چاپکردن: ${currentTimeStr}</div>
           <div style="margin-top: 4px;">واژۆی بەرپرس: _______________</div>
         </div>
       </div>
@@ -427,7 +444,7 @@ class ReportsModule {
       container.innerHTML = zReportHtml;
     }
 
-    window.app.openModal('receipt_modal');
+    if (window.app) window.app.openModal('receipt_modal');
     setTimeout(() => {
       window.print();
     }, 300);
@@ -441,10 +458,10 @@ class ReportsModule {
     let csv = `\uFEFFبەروار,کاتی فرۆشتن,ژمارەی وەسڵ,جۆری پەلەوەر,ناوی کڕیار,دانە,کێش (کگم),نرخی کیلۆ,پاککراو,کرێی پاککردن,نرخی گۆشت,کۆی گشتی\n`;
 
     sales.forEach(s => {
-      const time = new Date(s.timestamp).toLocaleTimeString('ar-IQ');
-      const date = s.timestamp.slice(0, 10);
+      const time = getBaghdadTime(s.timestamp);
+      const date = getBaghdadDate(s.timestamp);
       const itemDesc = s.is_service_only ? `تەنها پاککردن (${s.service_target_name || 'پەلەوەر'})` : (s.item_type || 'مریشک');
-      csv += `"${date}","${time}","${s.receipt_no}","${itemDesc}","${s.customer_name || ''}",${s.chickens_count},${s.weight_kg},${s.sell_price_per_kg},"${s.is_cleaned ? 'بەڵێ' : 'نەخێر'}",${s.cleaning_total_fee},${s.meat_price},${s.total_amount}\n`;
+      csv += `"${date}","${time}","${s.receipt_no}","${itemDesc}","${(s.customer_name || '').replace(/"/g, '""')}",${s.chickens_count},${s.weight_kg},${s.sell_price_per_kg},"${s.is_cleaned ? 'بەڵێ' : 'نەخێر'}",${s.cleaning_total_fee},${s.meat_price},${s.total_amount}\n`;
     });
 
     // Summary lines
@@ -472,8 +489,9 @@ class ReportsModule {
     a.click();
     URL.revokeObjectURL(url);
 
-    window.app.showToast(`فایلی CSV بۆ (${isMonthly ? this.currentMonth : this.currentDate}) دابەزێنرا`, 'success');
+    if (window.app) window.app.showToast(`فایلی CSV بۆ (${isMonthly ? this.currentMonth : this.currentDate}) دابەزێنرا`, 'success');
   }
 }
 
+// Global instance
 window.reports = new ReportsModule();

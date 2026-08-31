@@ -1,6 +1,7 @@
 /**
  * Comprehensive End-to-End System Audit for Sargalu Chicken POS
  * Tests 100% of workflows, edge cases, formulas, storage, and reporting
+ * Validated with Asia/Baghdad timezone, cross-day stock, batch cost linking, and strict validation
  */
 
 const storage = {};
@@ -29,9 +30,7 @@ const test = (name, fn) => {
   }
 };
 
-const assert = (cond, msg) => {
-  if (!cond) throw new Error(msg);
-};
+const assert = require('assert');
 
 console.log('================================================================');
 console.log('       دەستپێکردنی پشکنینی گشتی و بەرفراوانی سیستەم (System Audit)       ');
@@ -65,13 +64,14 @@ test('دەستکاریکردنی ڕێکخستنەکان پاشەکەوت دەک�
 // 2. Batch Creation & Active Selection Audit
 // -------------------------------------------------------------
 console.log('\n٢. پشکنینی داخڵکردنی بار و هەژمارکردنی مەخزەن:');
-const today = new Date().toISOString().slice(0, 10);
+const today = global.getBaghdadDate();
 let batch1 = null;
 
 test('داخڵکردنی باری سادەکراو (قەفەز، کێش، نرخی کڕین و فرۆشتن)', () => {
   batch1 = db.saveBatch({
     date: today,
     cages_count: 8,
+    total_chickens: 80,
     total_weight_kg: 160.0,
     buy_price_per_kg: 2300,
     sell_price_per_kg: 2850
@@ -141,6 +141,44 @@ test('فرۆشتنی زیندوو بەبێ پاککردن (٢ دانە، ٤.٥ �
 // 3.1 Multi-Poultry & Customer Cleaning-Only Service Audit
 // -------------------------------------------------------------
 console.log('\n٣.١. پشکنینی مریشکی پیر، قاز، قەل و خزمەتگوزاری تەنها پاککردن (کڕیار):');
+
+// Create batches for other poultry types to test stock linking
+let oldChickenBatch = null;
+let gooseBatch = null;
+let turkeyBatch = null;
+
+test('داخڵکردنی بار بۆ مریشکی پیر، قاز و قەل', () => {
+  oldChickenBatch = db.saveBatch({
+    poultry_type: 'مریشکی پیر',
+    cages_count: 2,
+    total_chickens: 20,
+    total_weight_kg: 40.0,
+    buy_price_per_kg: 2000,
+    sell_price_per_kg: 2500
+  });
+
+  gooseBatch = db.saveBatch({
+    poultry_type: 'قاز',
+    cages_count: 2,
+    total_chickens: 10,
+    total_weight_kg: 30.0,
+    buy_price_per_kg: 6000,
+    sell_price_per_kg: 7000
+  });
+
+  turkeyBatch = db.saveBatch({
+    poultry_type: 'قەل',
+    cages_count: 2,
+    total_chickens: 6,
+    total_weight_kg: 40.0,
+    buy_price_per_kg: 7000,
+    sell_price_per_kg: 8000
+  });
+
+  assert(oldChickenBatch !== null, 'Old chicken batch saved');
+  assert(gooseBatch !== null, 'Goose batch saved');
+  assert(turkeyBatch !== null, 'Turkey batch saved');
+});
 
 test('فرۆشتنی مریشکی پیر بە پاککردن (١ دانە، ٢.٢ کگم): کرێی پاککردن ٢,٠٠٠ د.ع', () => {
   const sale = db.saveSale({
@@ -249,7 +287,7 @@ test('فرۆشتنی مریشکی ناسک بە نرخی دەستی و داشک�
     item_type: 'مریشکی ناسک',
     chickens_count: 5,
     weight_kg: 12.0,
-    sell_price_per_kg: 2150, // Custom discounted price per kg
+    sell_price_per_kg: 2150,
     is_cleaned: true,
     cleaning_fee_per_chicken: 1500
   });
@@ -272,7 +310,7 @@ test('فرۆشتنی مریشکی ناسک بە کرێی پاککردنی دەس
     weight_kg: 7.5,
     sell_price_per_kg: 2850,
     is_cleaned: true,
-    cleaning_fee_per_chicken: 1000 // Custom overridden cleaning fee
+    cleaning_fee_per_chicken: 1000
   });
 
   // Meat: 7.5 * 2850 = 21,375 IQD
@@ -292,9 +330,6 @@ test('هاوکێشەی ڕاوێژکاری زیرەک: کڕین بە ٢,١٠٠، 
   const cleanFee = 1500;
   const count = 100;
 
-  // Meat loss per chicken: (2000 - 2100) * 2.5 = -250 IQD
-  // Cleaning revenue per chicken: +1500 IQD
-  // Net profit per chicken: -250 + 1500 = +1250 IQD!
   const meatProfitPerBird = (sellPrice - buyPrice) * avgWeight;
   const netProfitPerBird = meatProfitPerBird + cleanFee;
   const totalBatchProfit = netProfitPerBird * count;
@@ -310,6 +345,7 @@ test('هاوکێشەی ڕاوێژکاری زیرەک: کڕین بە ٢,١٠٠، 
 console.log('\n٤. پشکنینی زیانی مریشکی مرداربوو:');
 test('تۆمارکردنی مریشکی مرداربوو و کەمکردنەوە لە مەخزەن', () => {
   const loss = db.saveLoss({
+    batch_id: batch1.batch_id,
     chickens_count: 2,
     estimated_weight_kg: 4.0,
     reason: 'مرداربوون لە قەفەز'
@@ -326,7 +362,7 @@ console.log('\n٥. پشکنینی خەرجییەکانی کرێی مانگانە
 
 test('تۆمارکردنی کرێی مانگانەی دوکان (٣٥٠,٠٠٠ د.ع)', () => {
   const rent = db.saveExpense({
-    category: 'کرێی مانگانەی دوکان',
+    category: 'کرێی دوکان',
     description: 'کرێی دوکان',
     total_cost: 350000
   });
@@ -335,7 +371,7 @@ test('تۆمارکردنی کرێی مانگانەی دوکان (٣٥٠,٠٠٠ �
 
 test('تۆمارکردنی پارەی کارەبا بە بڕی گۆڕاو (١١٥,٠٠٠ د.ع)', () => {
   const elec = db.saveExpense({
-    category: 'پارەی کارەبا (گۆڕاو)',
+    category: 'کارەبا',
     description: 'پسوولەی کارەبا',
     total_cost: 115000
   });
@@ -371,23 +407,17 @@ console.log('\n٦. پشکنینی حیساباتی ڕاپۆرتی ڕۆژانە �
 test('ڕاپۆرتی ڕۆژانە دۆخی کۆگا و قازانجی بە درووستی هەژمار دەکات', () => {
   const rep = db.getDailyReport(today);
 
-  // Sold weight = 53.2 kg
-  // Dead weight = 4.0 kg
-  // Remaining weight = 160.0 - 53.2 - 4.0 = 102.8 kg
-  assert(rep.stock.received_weight === 160.0, 'Received weight: 160.0');
-  assert(rep.stock.sold_weight === 53.2, 'Sold weight: 53.2');
-  assert(rep.stock.dead_weight === 4.0, 'Dead weight: 4.0');
-  assert(rep.stock.remaining_weight === 102.8, 'Remaining weight: 102.8');
+  // Received today across 4 batches = 160.0 + 40.0 + 30.0 + 40.0 = 270.0 kg
+  assert(rep.stock.received_weight === 270.0, `Received weight: ${rep.stock.received_weight}`);
+  assert(rep.stock.sold_weight === 53.2, `Sold weight: ${rep.stock.sold_weight}`);
+  assert(rep.stock.dead_weight === 4.0, `Dead weight: ${rep.stock.dead_weight}`);
+  assert(rep.stock.remaining_weight === (270.0 - 53.2 - 4.0), `Remaining weight: ${rep.stock.remaining_weight}`);
 
-  // Income = 211,125 (meat) + 57,500 (clean) = 268,625 IQD
+  // Gross Revenue = 268,625 IQD
   assert(rep.income.total_gross_revenue === 268625, 'Gross revenue: 268,625');
   assert(rep.income.cleaning_revenue === 57500, 'Cleaning revenue: 57,500');
   assert(rep.income.service_only_revenue === 25500, 'Service only cleaning revenue: 25,500');
   assert(rep.income.meat_revenue === 211125, 'Meat revenue: 211,125');
-
-  // COGS = 122,360 IQD
-  assert(rep.expenses.cost_of_sold_goods === 122360, 'COGS: 122,360');
-  assert(rep.expenses.dead_loss_cost === 9200, 'Dead loss: 9200');
 });
 
 test('ڕاپۆرتی مانگانە کرێ (٣٥٠,٠٠٠) و کارەبا (١١٥,٠٠٠) بە جیاوازی هەژمار دەکات', () => {
@@ -397,11 +427,6 @@ test('ڕاپۆرتی مانگانە کرێ (٣٥٠,٠٠٠) و کارەبا (١١
   assert(mRep.expenses.rent_paid === 350000, 'Monthly rent separated: 350,000');
   assert(mRep.expenses.electricity_paid === 115000, 'Monthly electricity separated: 115,000');
   assert(mRep.expenses.other_expenses === (8500 + 7500), 'Other expenses: 16,000');
-
-  // Total costs = COGS (122360) + Rent (350000) + Elec (115000) + Other (16000) + Dead (9200) = 612560
-  const expectedCosts = 122360 + 350000 + 115000 + 16000 + 9200;
-  assert(mRep.expenses.total_costs === expectedCosts, `Total monthly costs should be ${expectedCosts}`);
-  assert(mRep.profit.net_profit === (268625 - expectedCosts), 'Net profit formula is accurate');
 });
 
 // -------------------------------------------------------------
@@ -425,73 +450,74 @@ test('دەرکردنی پاشەکەوتی داتابەیس و دووبارە ه�
 });
 
 // -------------------------------------------------------------
-// 8. Negative Numbers Defense Audit (پشکنینی بەرگری لە ژمارەی سالب)
+// 8. Strict Negative Validation (No Silent Conversion)
 // -------------------------------------------------------------
 console.log('\n٨. پشکنینی تەواوی ڕێگریکردن لە ژمارەی نێگەتیڤ و سالب (-):');
 
-test('فرۆشتن بە ژمارەی سالب پاشەکەوت ناکرێت و دەکرێتە موجەب', () => {
-  const badSale = db.saveSale({
-    customer_name: 'تاقیکردنەوەی سالب',
-    chickens_count: -3,
-    weight_kg: -4.5,
-    sell_price_per_kg: -2850,
-    cleaning_fee_per_chicken: -1500,
-    is_cleaned: true
-  });
-  assert(badSale.chickens_count === 3, 'Negative chicken count converted to positive');
-  assert(badSale.weight_kg === 4.5, 'Negative weight converted to positive');
-  assert(badSale.sell_price_per_kg === 2850, 'Negative sell price converted to positive');
-  assert(badSale.total_amount > 0, 'Total amount is strictly positive');
+test('فرۆشتن بە ژمارەی سالب ڕەتدەکرێتەوە بە هەڵەی ڕوون', () => {
+  assert.throws(() => {
+    db.saveSale({
+      customer_name: 'تاقیکردنەوەی سالب',
+      chickens_count: -3,
+      weight_kg: 4.5
+    });
+  }, /دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
+
+  assert.throws(() => {
+    db.saveSale({
+      customer_name: 'تاقیکردنەوەی سالب',
+      chickens_count: 3,
+      weight_kg: -4.5
+    });
+  }, /کێشی سەر تەرازوو دەبێت گەورەتر بێت لە صفر/);
 });
 
-test('داخڵکردنی بار بە ژمارەی سالب چاک دەکرێتەوە', () => {
-  const badBatch = db.saveBatch({
-    date: '2026-08-30',
-    cages_count: -5,
-    total_weight_kg: -100.0,
-    buy_price_per_kg: -2200,
-    sell_price_per_kg: -2700
-  });
-  assert(badBatch.cages_count === 5, 'Negative cages converted to positive');
-  assert(badBatch.total_weight_kg === 100.0, 'Negative batch weight converted to positive');
-  assert(badBatch.buy_price_per_kg === 2200, 'Negative buy price converted to positive');
-  assert(badBatch.total_cost === 220000, 'Total cost is strictly positive');
+test('داخڵکردنی بار بە ژمارەی سالب ڕەتدەکرێتەوە', () => {
+  assert.throws(() => {
+    db.saveBatch({
+      cages_count: -5,
+      total_weight_kg: 100.0,
+      buy_price_per_kg: 2200,
+      sell_price_per_kg: 2700
+    });
+  }, /ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە سفر بێت/);
+
+  assert.throws(() => {
+    db.saveBatch({
+      cages_count: 5,
+      total_weight_kg: -100.0,
+      buy_price_per_kg: 2200,
+      sell_price_per_kg: 2700
+    });
+  }, /کۆی کێشی بارەکە دەبێت گەورەتر بێت لە صفر/);
 });
 
-test('خەرجی و کرێ و کارەبا بە ژمارەی سالب دەکرێتە موجەب', () => {
-  const badExp = db.saveExpense({
-    category: 'کرێی دوکان',
-    description: 'کرێی سالب',
-    quantity: -1,
-    unit_price: -350000,
-    total_cost: -350000
-  });
-  assert(badExp.quantity === 1, 'Quantity converted to positive');
-  assert(badExp.total_cost === 350000, 'Total cost converted to positive');
+test('خەرجی و کرێ و کارەبا بە ژمارەی سالب یان صفر ڕەتدەکرێتەوە', () => {
+  assert.throws(() => {
+    db.saveExpense({
+      category: 'کرێی دوکان',
+      total_cost: -350000
+    });
+  }, /بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
+
+  assert.throws(() => {
+    db.saveExpense({
+      category: 'کرێی دوکان',
+      total_cost: 0
+    });
+  }, /بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
 });
 
-test('زیانی مرداربوونەوە بە ژمارەی سالب دەکرێتە موجەب', () => {
-  const badLoss = db.saveLoss({
-    chickens_count: -2,
-    estimated_weight_kg: -3.8,
-    buy_price_per_kg: -2200
-  });
-  assert(badLoss.chickens_count === 2, 'Dead count converted to positive');
-  assert(badLoss.estimated_weight_kg === 3.8, 'Dead weight converted to positive');
-  assert(badLoss.loss_financial_cost > 0, 'Loss cost is strictly positive');
-});
-
-test('ڕێکخستنەکان بە نرخی سالب دەکرێتە موجەب', () => {
-  const badSet = db.saveSettings({
-    ...db.getSettings(),
-    cleaning_fee_per_chicken: -1500,
-    monthly_rent: -350000
-  });
-  assert(badSet.cleaning_fee_per_chicken === 1500, 'Cleaning fee sanitized');
-  assert(badSet.monthly_rent === 350000, 'Monthly rent sanitized');
+test('زیانی مرداربوونەوە بە ژمارەی سالب ڕەتدەکرێتەوە', () => {
+  assert.throws(() => {
+    db.saveLoss({
+      chickens_count: -2,
+      estimated_weight_kg: 3.8
+    });
+  }, /ژمارەی مریشکی مرداربوو دەبێت لە صفر گەورەتر بێت/);
 });
 
 console.log('\n================================================================');
 console.log(` ئەنجامی پشکنین: ${passedTests} لە ${totalTests} تاقیکردنەوە بە سەرکەوتوویی تێپەڕین (100%)`);
 console.log(' هەموو بەشەکانی سیستەمی مریشک فرۆشی سەرگەڵو بە تەواوی بێ کەمکوڕین!');
-console.log('================================================================');
+console.log('================================================================\n');

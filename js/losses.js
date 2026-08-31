@@ -1,6 +1,6 @@
 /**
  * Sargalu Chicken POS - Dead Loss & Mortality Module (مرداربوونەوە و لەدەستچوون)
- * Stock deduction, loss financial cost calculation, reason tracking
+ * Stock deduction, loss financial cost calculation, reason tracking, Baghdad timezone, XSS safety
  */
 
 class LossesModule {
@@ -13,12 +13,14 @@ class LossesModule {
     this.renderLossesList();
     this.updateEstimatedValues();
 
-    window.db.subscribe((event) => {
-      if (['losses_updated', 'batches_updated', 'active_batch_changed'].includes(event)) {
-        this.renderLossesList();
-        this.updateEstimatedValues();
-      }
-    });
+    if (window.db) {
+      window.db.subscribe((event) => {
+        if (['losses_updated', 'batches_updated', 'active_batch_changed', 'all_data_restored'].includes(event)) {
+          this.renderLossesList();
+          this.updateEstimatedValues();
+        }
+      });
+    }
   }
 
   bindEvents() {
@@ -39,7 +41,7 @@ class LossesModule {
         if (cur > 1) {
           countInput.value = cur - 1;
           this.updateEstimatedValues();
-          window.app.playSound('click');
+          if (window.app) window.app.playSound('click');
         }
       });
     }
@@ -49,7 +51,7 @@ class LossesModule {
         let cur = parseInt(countInput.value, 10) || 0;
         countInput.value = cur + 1;
         this.updateEstimatedValues();
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     }
 
@@ -75,12 +77,12 @@ class LossesModule {
     const countInput = document.getElementById('loss_dead_count');
     const count = parseInt(countInput ? countInput.value : 1, 10) || 0;
 
-    const activeBatch = window.db.getActiveBatch();
-    const settings = window.db.getSettings();
+    const activeBatch = window.db ? window.db.getActiveBatch() : null;
+    const settings = window.db ? window.db.getSettings() : { default_buy_price_per_kg: 2250 };
 
-    const avgWeight = activeBatch && activeBatch.average_weight_per_chicken > 0 
-      ? activeBatch.average_weight_per_chicken 
-      : 1.9;
+    const avgWeight = activeBatch && activeBatch.avg_weight_per_bird > 0
+      ? activeBatch.avg_weight_per_bird
+      : (activeBatch && activeBatch.average_weight_per_chicken > 0 ? activeBatch.average_weight_per_chicken : 1.9);
 
     const buyPrice = activeBatch ? activeBatch.buy_price_per_kg : settings.default_buy_price_per_kg;
 
@@ -115,7 +117,7 @@ class LossesModule {
     const reasonNote = document.getElementById('loss_reason_note');
 
     if (count <= 0) {
-      window.app.showToast('تکایە ژمارەی مریشکی مرداربوو دیاری بکە', 'warning');
+      if (window.app) window.app.showToast('تکایە ژمارەی مریشکی مرداربوو دیاری بکە', 'warning');
       return;
     }
 
@@ -124,43 +126,58 @@ class LossesModule {
       reason += ` (${reasonNote.value.trim()})`;
     }
 
+    const activeBatch = window.db ? window.db.getActiveBatch() : null;
+
     const lossData = {
+      batch_id: activeBatch ? activeBatch.batch_id : null,
       chickens_count: count,
       estimated_weight_kg: customWeight,
       reason: reason
     };
 
-    const saved = window.db.saveLoss(lossData);
-    window.app.playSound('warning');
-    window.app.showToast(`تۆماری زیانی ${count} مریشک لە کۆگا کەمکرایەوە`, 'danger');
+    try {
+      const saved = window.db.saveLoss(lossData);
+      if (window.app) {
+        window.app.playSound('warning');
+        window.app.showToast(`تۆماری زیانی ${count} مریشک لە مەخزەن کەمکرایەوە`, 'danger');
+      }
 
-    // Reset Form
-    document.getElementById('loss_dead_count').value = '1';
-    document.getElementById('loss_custom_weight').value = '';
-    if (reasonNote) reasonNote.value = '';
-    this.updateEstimatedValues();
+      // Reset Form
+      document.getElementById('loss_dead_count').value = '1';
+      document.getElementById('loss_custom_weight').value = '';
+      if (reasonNote) reasonNote.value = '';
+      this.updateEstimatedValues();
+    } catch (err) {
+      console.error('Loss submit error:', err);
+      if (window.app) {
+        window.app.playSound('warning');
+        window.app.showToast(err.message || 'هەڵەیەک ڕوویدا لە تۆمارکردنی زیان', 'danger');
+      }
+    }
   }
 
   renderLossesList() {
     const listEl = document.getElementById('losses_table_body');
     const totalTodayEl = document.getElementById('losses_today_total_count');
     const totalCostEl = document.getElementById('losses_today_total_cost');
-    if (!listEl) return;
+    if (!listEl || !window.db) return;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBaghdadDate();
     const losses = window.db.getLossesByDate(todayStr);
 
-    const sumCount = losses.reduce((sum, l) => sum + l.chickens_count, 0);
-    const sumCost = losses.reduce((sum, l) => sum + l.loss_financial_cost, 0);
+    const totalCount = losses.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
+    const totalCost = losses.reduce((sum, l) => sum + (Number(l.loss_financial_cost) || 0), 0);
 
-    if (totalTodayEl) totalTodayEl.textContent = `${sumCount} دانە`;
-    if (totalCostEl) totalCostEl.textContent = `${sumCost.toLocaleString()} د.ع`;
+    if (totalTodayEl) totalTodayEl.textContent = `${totalCount} دانە`;
+    if (totalCostEl) totalCostEl.textContent = `${totalCost.toLocaleString()} د.ع`;
 
     if (losses.length === 0) {
       listEl.innerHTML = `
         <tr>
-          <td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">
-            هیچ مریشکێکی مرداربوو بۆ ئەمڕۆ تۆمار نەکراوە.
+          <td colspan="6" class="empty-state">
+            <div class="empty-icon">🍗</div>
+            <div class="empty-title">هیچ زیانێکی مرداربوونەوە بۆ ئەمڕۆ تۆمار نەکراوە</div>
+            <div class="empty-sub">ئەگەر لە قەفەزدا مرداربوونەوە هەبوو، لە دەستە چەپ تۆماری بکە</div>
           </td>
         </tr>
       `;
@@ -168,17 +185,19 @@ class LossesModule {
     }
 
     listEl.innerHTML = losses.map(l => {
-      const time = new Date(l.timestamp).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+      const time = getBaghdadTime(l.timestamp);
       return `
         <tr>
-          <td><span class="badge badge-danger">${time}</span></td>
-          <td><strong style="color: var(--danger); font-size: 1.05rem;">${l.chickens_count}</strong> دانە</td>
-          <td><strong>${l.estimated_weight_kg}</strong> کگم</td>
-          <td><strong style="color: var(--danger);">${l.loss_financial_cost.toLocaleString()} د.ع</strong></td>
-          <td><span style="font-size: 0.85rem; color: var(--text-main);">${l.reason}</span></td>
           <td>
-            <button class="action-mini-btn delete" title="سڕینەوە" onclick="window.losses.confirmDeleteLoss('${l.loss_id}')">
-              ✕
+            <strong>${time}</strong>
+          </td>
+          <td><strong>${l.chickens_count}</strong> دانە</td>
+          <td>${l.estimated_weight_kg} کگم</td>
+          <td><strong style="color: var(--danger); font-size: 1.05rem;">${Number(l.loss_financial_cost).toLocaleString()} د.ع</strong></td>
+          <td><span class="badge badge-danger">${escapeHtml(l.reason)}</span></td>
+          <td>
+            <button type="button" class="btn-delete" onclick="window.losses.confirmDeleteLoss('${escapeHtml(l.loss_id)}')" title="سڕینەوە">
+              🗑️
             </button>
           </td>
         </tr>
@@ -187,12 +206,15 @@ class LossesModule {
   }
 
   confirmDeleteLoss(lossId) {
-    if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆمارەی مرداربوونەوە؟ ڕەسیدی مەخزەن چاک دەکرێتەوە.')) {
+    if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆماری زیانە؟')) {
       window.db.deleteLoss(lossId);
-      window.app.showToast('تۆمارەکە سڕایەوە', 'info');
-      window.app.playSound('delete');
+      if (window.app) {
+        window.app.playSound('delete');
+        window.app.showToast('زیانەکە سڕایەوە', 'info');
+      }
     }
   }
 }
 
+// Global instance
 window.losses = new LossesModule();

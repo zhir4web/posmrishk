@@ -256,7 +256,7 @@ class AppController {
     if (type === 'danger') icon = '🛑';
     if (type === 'warning') icon = '⚠️';
 
-    toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+    toast.innerHTML = `<span>${icon}</span><span>${escapeHtml(message)}</span>`;
     container.appendChild(toast);
 
     setTimeout(() => {
@@ -300,13 +300,6 @@ class AppController {
   }
 
   populateSettingsForm(s) {
-    if (document.getElementById('setting_store_name')) document.getElementById('setting_store_name').value = s.store_name || '';
-    if (document.getElementById('setting_phone')) document.getElementById('setting_phone').value = s.phone || '';
-    if (document.getElementById('setting_address')) document.getElementById('setting_address').value = s.address || '';
-    if (document.getElementById('setting_receipt_header')) document.getElementById('setting_receipt_header').value = s.receipt_header || '';
-    if (document.getElementById('setting_receipt_footer')) document.getElementById('setting_receipt_footer').value = s.receipt_footer || '';
-    if (document.getElementById('setting_cleaning_fee')) document.getElementById('setting_cleaning_fee').value = s.cleaning_fee_per_chicken ?? 1500;
-    if (document.getElementById('setting_cleaning_fee_old_chicken')) document.getElementById('setting_cleaning_fee_old_chicken').value = s.cleaning_fee_old_chicken ?? 2000;
     if (document.getElementById('setting_cleaning_fee_goose')) document.getElementById('setting_cleaning_fee_goose').value = s.cleaning_fee_goose ?? 3500;
     if (document.getElementById('setting_cleaning_fee_turkey')) document.getElementById('setting_cleaning_fee_turkey').value = s.cleaning_fee_turkey ?? 5000;
     if (document.getElementById('setting_monthly_rent')) document.getElementById('setting_monthly_rent').value = s.monthly_rent ?? 350000;
@@ -332,8 +325,8 @@ class AppController {
         const blob = new Blob([str], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = `sargalu_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        const backupDate = typeof getBaghdadDate === 'function' ? getBaghdadDate() : new Date().toISOString().slice(0, 10);
+        a.download = `sargalu_backup_${backupDate}.json`;
         a.click();
         URL.revokeObjectURL(url);
         this.showToast('فایلی پاشەکەوتی داتابەیس دابەزێنرا', 'success');

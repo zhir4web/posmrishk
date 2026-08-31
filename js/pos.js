@@ -1,6 +1,6 @@
 /**
  * Sargalu Chicken POS - Fast POS Module (شاشەی فرۆشتنی خێرا)
- * Multi-Poultry Support (مریشکی ناسک، مریشکی پیر، قاز، قەل) + Customer Poultry Cleaning Service Only
+ * Multi-Poultry Support + Batch Cost Linking + Strict Inventory Validation + XSS Safety
  */
 
 class PosModule {
@@ -32,16 +32,18 @@ class PosModule {
     this.updateCalculation();
 
     // Listen to db changes
-    window.db.subscribe((event) => {
-      if (['batches_updated', 'active_batch_changed', 'sales_updated', 'settings_updated'].includes(event)) {
-        this.renderLiveBanner();
-        this.renderSalesFeed();
-        this.updateServiceFeeBadges();
-        this.syncMeatSellPriceUI();
-        this.syncMeatCleaningFeeUI();
-        this.updateCalculation();
-      }
-    });
+    if (window.db) {
+      window.db.subscribe((event) => {
+        if (['batches_updated', 'active_batch_changed', 'sales_updated', 'losses_updated', 'settings_updated', 'all_data_restored'].includes(event)) {
+          this.renderLiveBanner();
+          this.renderSalesFeed();
+          this.updateServiceFeeBadges();
+          this.syncMeatSellPriceUI();
+          this.syncMeatCleaningFeeUI();
+          this.updateCalculation();
+        }
+      });
+    }
   }
 
   bindEvents() {
@@ -50,7 +52,7 @@ class PosModule {
       btn.addEventListener('click', (e) => {
         const type = e.currentTarget.getAttribute('data-type');
         this.setPoultryType(type);
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     });
 
@@ -59,7 +61,7 @@ class PosModule {
       btn.addEventListener('click', (e) => {
         const target = e.currentTarget.getAttribute('data-target');
         this.setServiceTarget(target);
-        window.app.playSound('click');
+        if (window.app) window.app.playSound('click');
       });
     });
 
@@ -69,62 +71,23 @@ class PosModule {
       customFeeInput.addEventListener('input', (e) => {
         let fee = parseFloat(e.target.value);
         if (isNaN(fee) || fee < 0) fee = 0;
-        this.customServiceFee = Math.max(0, Math.abs(fee));
+        this.customServiceFee = fee;
         this.updateServiceFeeIndicator();
         this.updateCalculation();
       });
     }
 
-    // 2.2 Quick Cleaning Fee Buttons (+1000, 1500, 2000, 2500, 3000, 3500, 5000)
-    document.querySelectorAll('.fee-quick-btn[data-fee]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const fee = parseFloat(e.currentTarget.getAttribute('data-fee')) || 1500;
-        this.setCustomServiceFee(fee);
-        window.app.playSound('beep');
-      });
-    });
-
-    // 2.3 Meat Sell Price Per Kg Direct Input
-    const meatSellInput = document.getElementById('pos_unit_sell_price_input');
-    if (meatSellInput) {
-      meatSellInput.addEventListener('input', (e) => {
-        let price = parseFloat(e.target.value);
-        if (isNaN(price) || price < 0) price = 0;
-        this.customMeatSellPrice = Math.max(0, Math.abs(price));
-        this.updateSellPriceBadge();
-        this.updateCalculation();
-      });
-    }
-
-    // 2.4 Quick Meat Sell Price Buttons (2000, 2100, 2200, 2500, 2750, 2850, 3000)
-    document.querySelectorAll('.meat-price-quick-btn[data-price]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const price = parseFloat(e.currentTarget.getAttribute('data-price')) || 2850;
-        this.setCustomMeatSellPrice(price);
-        window.app.playSound('beep');
-      });
-    });
-
-    // 2.5 Meat Cleaning Fee Direct Input (for Regular Meat Sales)
+    // 2.2 Meat Cleaning Fee Direct Input (for Regular Meat Sales)
     const meatCleanInput = document.getElementById('pos_meat_cleaning_fee_input');
     if (meatCleanInput) {
       meatCleanInput.addEventListener('input', (e) => {
         let fee = parseFloat(e.target.value);
         if (isNaN(fee) || fee < 0) fee = 0;
-        this.customMeatCleaningFee = Math.max(0, Math.abs(fee));
+        this.customMeatCleaningFee = fee;
         this.updateMeatCleaningFeeBadge();
         this.updateCalculation();
       });
     }
-
-    // 2.6 Quick Meat Cleaning Fee Buttons (1000, 1500, 2000, 2500, 3000, 5000, 0)
-    document.querySelectorAll('.meat-clean-quick-btn[data-fee]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const fee = parseFloat(e.currentTarget.getAttribute('data-fee')) || 0;
-        this.setCustomMeatCleaningFee(fee);
-        window.app.playSound('beep');
-      });
-    });
 
     // 3. Direct Chickens Count Input
     const countInput = document.getElementById('pos_chickens_count');
@@ -132,7 +95,7 @@ class PosModule {
       countInput.addEventListener('input', (e) => {
         let val = parseInt(e.target.value, 10);
         if (isNaN(val) || val < 1) val = 1;
-        this.currentSale.chickens_count = Math.max(1, Math.abs(val));
+        this.currentSale.chickens_count = val;
         this.updateCalculation();
       });
     }
@@ -150,7 +113,7 @@ class PosModule {
       btn.addEventListener('click', (e) => {
         const key = e.currentTarget.getAttribute('data-key');
         this.handleKeypadInput(key);
-        window.app.playSound('beep');
+        if (window.app) window.app.playSound('beep');
       });
     });
 
@@ -164,7 +127,7 @@ class PosModule {
         this.currentSale.weight_kg = cur;
         this.updateWeightDisplay();
         this.updateCalculation();
-        window.app.playSound('beep');
+        if (window.app) window.app.playSound('beep');
       });
     });
 
@@ -221,7 +184,6 @@ class PosModule {
     const servicePanel = document.getElementById('service_only_panel');
     const scaleSection = document.getElementById('pos_scale_weight_section');
     const cleaningSection = document.getElementById('pos_cleaning_choice_section');
-    const meatPriceSection = document.getElementById('pos_meat_price_config_section');
     const meatCleanPanel = document.getElementById('pos_meat_cleaning_custom_panel');
     const countLabel = document.getElementById('pos_count_label');
 
@@ -229,20 +191,18 @@ class PosModule {
       if (servicePanel) servicePanel.style.display = 'block';
       if (scaleSection) scaleSection.style.display = 'none';
       if (cleaningSection) cleaningSection.style.display = 'none';
-      if (meatPriceSection) meatPriceSection.style.display = 'none';
       if (meatCleanPanel) meatCleanPanel.style.display = 'none';
       if (countLabel) countLabel.textContent = 'ژمارەی پەلەوەری کڕیار (دانە):';
     } else {
       if (servicePanel) servicePanel.style.display = 'none';
       if (scaleSection) scaleSection.style.display = 'block';
       if (cleaningSection) cleaningSection.style.display = 'block';
-      if (meatPriceSection) meatPriceSection.style.display = 'block';
-      if (meatCleanPanel) meatCleanPanel.style.display = this.currentSale.is_cleaned ? 'block' : 'none';
+      if (meatCleanPanel) meatCleanPanel.style.display = this.currentSale.is_cleaned ? 'flex' : 'none';
       if (countLabel) countLabel.textContent = 'ژمارەی مریشک / دانە:';
     }
 
-    this.customMeatSellPrice = null; // Reset custom price when switching poultry type to adopt its batch price
-    this.customMeatCleaningFee = null; // Reset custom cleaning fee to adopt default for that poultry type
+    this.customMeatSellPrice = null;
+    this.customMeatCleaningFee = null;
     this.syncMeatSellPriceUI();
     this.syncMeatCleaningFeeUI();
     this.renderLiveBanner();
@@ -250,11 +210,6 @@ class PosModule {
   }
 
   syncMeatSellPriceUI() {
-    const effectivePrice = this.getEffectiveMeatSellPrice();
-    const input = document.getElementById('pos_unit_sell_price_input');
-    if (input && document.activeElement !== input) {
-      input.value = effectivePrice;
-    }
     this.updateSellPriceBadge();
   }
 
@@ -268,9 +223,7 @@ class PosModule {
   }
 
   setCustomMeatSellPrice(price) {
-    this.customMeatSellPrice = Math.max(0, Math.abs(parseFloat(price) || 0));
-    const input = document.getElementById('pos_unit_sell_price_input');
-    if (input) input.value = this.customMeatSellPrice;
+    this.customMeatSellPrice = Math.max(0, parseFloat(price) || 0);
     this.updateSellPriceBadge();
     this.updateCalculation();
   }
@@ -293,7 +246,7 @@ class PosModule {
   }
 
   setCustomMeatCleaningFee(fee) {
-    this.customMeatCleaningFee = Math.max(0, Math.abs(parseFloat(fee) || 0));
+    this.customMeatCleaningFee = Math.max(0, parseFloat(fee) || 0);
     const input = document.getElementById('pos_meat_cleaning_fee_input');
     if (input) input.value = this.customMeatCleaningFee;
     this.updateMeatCleaningFeeBadge();
@@ -333,7 +286,7 @@ class PosModule {
   }
 
   setCustomServiceFee(fee) {
-    this.customServiceFee = Math.max(0, Math.abs(parseFloat(fee) || 0));
+    this.customServiceFee = Math.max(0, parseFloat(fee) || 0);
     const input = document.getElementById('pos_service_custom_fee');
     if (input) input.value = this.customServiceFee;
     this.updateServiceFeeIndicator();
@@ -349,15 +302,15 @@ class PosModule {
 
   updateServiceFeeBadges() {
     const settings = window.db.getSettings();
-    const bChicken = document.getElementById('fee_badge_chicken');
-    const bOldChicken = document.getElementById('fee_badge_old_chicken');
-    const bGoose = document.getElementById('fee_badge_goose');
-    const bTurkey = document.getElementById('fee_badge_turkey');
+    const elChicken = document.getElementById('fee_badge_chicken');
+    const elOld = document.getElementById('fee_badge_old_chicken');
+    const elGoose = document.getElementById('fee_badge_goose');
+    const elTurkey = document.getElementById('fee_badge_turkey');
 
-    if (bChicken) bChicken.textContent = `${(settings.cleaning_fee_per_chicken || 1500).toLocaleString()} د.ع`;
-    if (bOldChicken) bOldChicken.textContent = `${(settings.cleaning_fee_old_chicken || 2000).toLocaleString()} د.ع`;
-    if (bGoose) bGoose.textContent = `${(settings.cleaning_fee_goose || 3500).toLocaleString()} د.ع`;
-    if (bTurkey) bTurkey.textContent = `${(settings.cleaning_fee_turkey || 5000).toLocaleString()} د.ع`;
+    if (elChicken) elChicken.textContent = `${(settings.cleaning_fee_per_chicken || 1500).toLocaleString()} د.ع`;
+    if (elOld) elOld.textContent = `${(settings.cleaning_fee_old_chicken || 2000).toLocaleString()} د.ع`;
+    if (elGoose) elGoose.textContent = `${(settings.cleaning_fee_goose || 3500).toLocaleString()} د.ع`;
+    if (elTurkey) elTurkey.textContent = `${(settings.cleaning_fee_turkey || 5000).toLocaleString()} د.ع`;
   }
 
   getEffectiveCleaningFee() {
@@ -367,11 +320,10 @@ class PosModule {
     if (!this.currentSale.is_cleaned) {
       return 0;
     }
-    if (this.customMeatCleaningFee !== null && !isNaN(this.customMeatCleaningFee)) {
+    if (this.customMeatCleaningFee !== null && !isNaN(this.customMeatCleaningFee) && this.customMeatCleaningFee >= 0) {
       return this.customMeatCleaningFee;
     }
-
-    const settings = window.db.getSettings();
+    const settings = window.db ? window.db.getSettings() : {};
     if (this.selectedPoultryType === 'مریشکی پیر') return settings.cleaning_fee_old_chicken || 2000;
     if (this.selectedPoultryType === 'قاز') return settings.cleaning_fee_goose || 3500;
     if (this.selectedPoultryType === 'قەل') return settings.cleaning_fee_turkey || 5000;
@@ -379,19 +331,22 @@ class PosModule {
   }
 
   setCleaningMode(isCleaned) {
-    this.currentSale.is_cleaned = Boolean(isCleaned);
-    const yesBtn = document.getElementById('btn_cleaned_yes');
-    const noBtn = document.getElementById('btn_cleaned_no');
-    const meatCleanPanel = document.getElementById('pos_meat_cleaning_custom_panel');
+    this.currentSale.is_cleaned = isCleaned;
 
-    if (yesBtn) yesBtn.classList.toggle('active', this.currentSale.is_cleaned);
-    if (noBtn) noBtn.classList.toggle('active', !this.currentSale.is_cleaned);
-    if (meatCleanPanel) {
-      meatCleanPanel.style.display = (this.currentSale.is_cleaned && !this.currentSale.is_service_only) ? 'block' : 'none';
+    const btnYes = document.getElementById('btn_cleaned_yes');
+    const btnNo = document.getElementById('btn_cleaned_no');
+    const customPanel = document.getElementById('pos_meat_cleaning_custom_panel');
+
+    if (btnYes) btnYes.classList.toggle('active', isCleaned);
+    if (btnNo) btnNo.classList.toggle('active', !isCleaned);
+
+    if (customPanel && !this.currentSale.is_service_only) {
+      customPanel.style.display = isCleaned ? 'flex' : 'none';
     }
 
+    if (window.app) window.app.playSound('toggle');
+    this.syncMeatCleaningFeeUI();
     this.updateCalculation();
-    window.app.playSound('toggle');
   }
 
   handleKeypadInput(key) {
@@ -413,7 +368,7 @@ class PosModule {
       this.weightInputBuffer = nextStr;
     }
 
-    this.currentSale.weight_kg = Math.max(0, Math.abs(parseFloat(this.weightInputBuffer) || 0));
+    this.currentSale.weight_kg = parseFloat(this.weightInputBuffer) || 0;
     this.updateWeightDisplay();
     this.updateCalculation();
   }
@@ -427,7 +382,7 @@ class PosModule {
 
   renderLiveBanner() {
     const banner = document.getElementById('pos_batch_banner');
-    if (!banner) return;
+    if (!banner || !window.db) return;
 
     if (this.currentSale.is_service_only) {
       banner.innerHTML = `
@@ -445,7 +400,6 @@ class PosModule {
     }
 
     const activeBatch = window.db.getActiveBatch(this.selectedPoultryType);
-    const settings = window.db.getSettings();
     const effectiveSellPrice = this.getEffectiveMeatSellPrice();
 
     if (!activeBatch) {
@@ -453,31 +407,36 @@ class PosModule {
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <span style="font-size: 1.5rem;">⚠️</span>
           <div>
-            <div style="font-weight: 800; font-size: 1.05rem;">باری کارا بۆ (${this.selectedPoultryType}) دیاری نەکراوە</div>
-            <div style="font-size: 0.85rem; opacity: 0.9;">نرخی فرۆشتنی ئێستا: ${effectiveSellPrice.toLocaleString()} د.ع/کگم</div>
+            <div style="font-weight: 800; font-size: 1.05rem;">باری کارا بۆ (${escapeHtml(this.selectedPoultryType)}) دیاری نەکراوە</div>
+            <div style="font-size: 0.85rem; opacity: 0.9;">نرخی فرۆشتنی سەرەتا: ${effectiveSellPrice.toLocaleString()} د.ع/کگم</div>
           </div>
         </div>
-        <button class="touch-btn" onclick="window.app.switchTab('batches')" style="background: white; color: var(--primary); padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 800; font-size: 0.85rem;">
+        <button type="button" class="touch-btn" onclick="window.app.switchTab('batches')" style="background: white; color: var(--primary); padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 800; font-size: 0.85rem;">
           داخڵکردنی باری نوێ ⟵
         </button>
       `;
       return;
     }
 
+    const stock = window.db.getBatchStock(activeBatch.batch_id);
+    const remainingWeight = stock ? stock.remaining_weight : activeBatch.total_weight_kg;
+    const remainingCount = stock ? stock.remaining_count : (activeBatch.total_chickens || 0);
+
+    const stockBadgeClass = remainingWeight <= 0 ? 'color: #ef4444;' : (remainingWeight < 15 ? 'color: #f59e0b;' : 'color: #dcfce7;');
+
     banner.innerHTML = `
       <div style="display: flex; align-items: center; gap: 0.75rem;">
         <span style="font-size: 1.4rem;">📦</span>
         <div>
-          <div style="font-weight: 800; font-size: 1rem;">باری کارای ${activeBatch.poultry_type || 'مریشک'} (${activeBatch.date})</div>
+          <div style="font-weight: 800; font-size: 1rem;">باری کارای ${escapeHtml(activeBatch.poultry_type || 'مریشک')} (${escapeHtml(activeBatch.date || '')})</div>
           <div style="font-size: 0.82rem; opacity: 0.95;">
-            ژمارەی قەفەز: <span class="highlight">${activeBatch.cages_count || 1} قەفەز</span> | 
-            کۆی کێشی بار: <span class="highlight">${activeBatch.total_weight_kg} کگم</span> | 
+            مەخزەنی ماوە: <strong style="${stockBadgeClass}">${remainingWeight} کگم</strong> (${remainingCount} دانە) | 
             کڕین: <span class="highlight">${activeBatch.buy_price_per_kg.toLocaleString()} د.ع</span>
           </div>
         </div>
       </div>
       <div style="text-align: left;">
-        <div style="font-size: 0.75rem; opacity: 0.9;">نرخی فرۆشتن لە شاشە:</div>
+        <div style="font-size: 0.75rem; opacity: 0.9;">نرخی فرۆشتن:</div>
         <div style="font-size: 1.3rem; font-weight: 900; color: #fef08a;">${effectiveSellPrice.toLocaleString()} د.ع</div>
       </div>
     `;
@@ -485,7 +444,7 @@ class PosModule {
 
   updateCalculation() {
     const isService = this.currentSale.is_service_only;
-    const settings = window.db.getSettings();
+    const settings = window.db ? window.db.getSettings() : { currency_symbol: 'د.ع' };
 
     const sellPrice = isService ? 0 : this.getEffectiveMeatSellPrice();
     const cleaningFee = this.getEffectiveCleaningFee();
@@ -528,8 +487,20 @@ class PosModule {
     const isService = this.currentSale.is_service_only;
     
     if (!isService && (!this.currentSale.weight_kg || this.currentSale.weight_kg <= 0)) {
-      window.app.showToast('تکایە سەرەتا کێشی مریشکەکان داخڵ بکە', 'warning');
-      window.app.playSound('error');
+      if (window.app) {
+        window.app.showToast('تکایە سەرەتا کێشی مریشکەکان لەسەر تەرازوو دیاری بکە', 'warning');
+        window.app.playSound('error');
+      }
+      return;
+    }
+
+    const activeBatch = isService ? null : window.db.getActiveBatch(this.selectedPoultryType);
+
+    if (!isService && !activeBatch) {
+      if (window.app) {
+        window.app.showToast(`هیچ بارێکی کارا بۆ (${this.selectedPoultryType}) لە مەخزەن نییە. تکایە سەرەتا بار داخڵ بکە`, 'warning');
+        window.app.playSound('error');
+      }
       return;
     }
 
@@ -545,20 +516,31 @@ class PosModule {
       cleaning_fee_per_chicken: cleaningFee,
       item_type: isService ? 'تەنها پاککردن' : this.selectedPoultryType,
       is_service_only: isService,
-      service_target_name: isService ? this.selectedServiceTarget : this.selectedPoultryType
+      service_target_name: isService ? this.selectedServiceTarget : this.selectedPoultryType,
+      batch_id: activeBatch ? activeBatch.batch_id : null
     };
 
-    const savedSale = window.db.saveSale(saleData);
+    try {
+      const savedSale = window.db.saveSale(saleData);
 
-    window.app.playSound('cash');
-    window.app.showToast(`وەسڵی ژمارە #${savedSale.receipt_no} (${savedSale.item_type}) تۆمارکرا`, 'success');
+      if (window.app) {
+        window.app.playSound('cash');
+        window.app.showToast(`وەسڵی ژمارە #${savedSale.receipt_no} (${savedSale.item_type}) تۆمارکرا`, 'success');
+      }
 
-    if (shouldPrint) {
-      this.openReceiptModal(savedSale);
+      if (shouldPrint) {
+        this.openReceiptModal(savedSale);
+      }
+
+      // Reset Form for next customer
+      this.resetForm();
+    } catch (err) {
+      console.error('Sale save error:', err);
+      if (window.app) {
+        window.app.playSound('warning');
+        window.app.showToast(err.message || 'هەڵەیەک ڕوویدا لە تۆمارکردنی فرۆشتن', 'danger');
+      }
     }
-
-    // Reset Form for next customer
-    this.resetForm();
   }
 
   resetForm() {
@@ -583,14 +565,14 @@ class PosModule {
     const listEl = document.getElementById('pos_sales_feed_list');
     const countBadge = document.getElementById('pos_sales_count_badge');
     const totalTodayBadge = document.getElementById('pos_sales_today_total');
-    if (!listEl) return;
+    if (!listEl || !window.db) return;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBaghdadDate();
     const salesToday = window.db.getSalesByDate(todayStr);
 
     if (countBadge) countBadge.textContent = `${salesToday.length} وەسڵ`;
     
-    const sumTotal = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
+    const sumTotal = salesToday.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
     if (totalTodayBadge) totalTodayBadge.textContent = `${sumTotal.toLocaleString()} د.ع`;
 
     if (salesToday.length === 0) {
@@ -605,12 +587,12 @@ class PosModule {
     }
 
     listEl.innerHTML = salesToday.map(sale => {
-      const time = new Date(sale.timestamp).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' });
+      const time = getBaghdadTime(sale.timestamp);
       const isService = sale.is_service_only;
       
-      let typeBadge = `<span class="badge badge-success">${sale.item_type || 'مریشک'}</span>`;
+      let typeBadge = `<span class="badge badge-success">${escapeHtml(sale.item_type || 'مریشک')}</span>`;
       if (isService) {
-        typeBadge = `<span class="badge badge-warning">✂️ پاککردنی کڕیار (${sale.service_target_name || 'پەلەوەر'})</span>`;
+        typeBadge = `<span class="badge badge-warning">✂️ پاککردنی کڕیار (${escapeHtml(sale.service_target_name || 'پەلەوەر')})</span>`;
       } else if (sale.item_type === 'مریشکی پیر') {
         typeBadge = `<span class="badge badge-warning">🐓 مریشکی پیر</span>`;
       } else if (sale.item_type === 'قاز') {
@@ -620,13 +602,13 @@ class PosModule {
       }
 
       const cleanTag = isService ? '' : (sale.is_cleaned ? `<span class="badge badge-warning">پاککردن</span>` : `<span class="badge badge-neutral">زیندوو</span>`);
-      const custName = sale.customer_name ? `<span style="color: var(--info); font-weight: 700;">(${sale.customer_name})</span>` : '';
+      const custName = sale.customer_name ? `<span style="color: var(--info); font-weight: 700;">(${escapeHtml(sale.customer_name)})</span>` : '';
 
       return `
         <div class="sale-item-card">
           <div class="sale-item-info">
             <div class="sale-item-top">
-              <span class="receipt-tag">#${sale.receipt_no}</span>
+              <span class="receipt-tag">#${escapeHtml(sale.receipt_no)}</span>
               <span class="sale-item-time">${time}</span>
               ${typeBadge}
               ${cleanTag}
@@ -638,12 +620,12 @@ class PosModule {
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div class="sale-item-amount">${sale.total_amount.toLocaleString()} <span style="font-size: 0.7rem; font-weight: normal;">د.ع</span></div>
+            <div class="sale-item-amount">${Number(sale.total_amount).toLocaleString()} <span style="font-size: 0.7rem; font-weight: normal;">د.ع</span></div>
             <div class="sale-item-actions">
-              <button class="action-mini-btn" title="چاپکردنەوە" onclick="window.pos.openReceiptModalById('${sale.sale_id}')">
+              <button type="button" class="action-mini-btn" title="چاپکردنەوە" onclick="window.pos.openReceiptModalById('${escapeHtml(sale.sale_id)}')">
                 🖨️
               </button>
-              <button class="action-mini-btn delete" title="سڕینەوە" onclick="window.pos.confirmDeleteSale('${sale.sale_id}')">
+              <button type="button" class="action-mini-btn delete" title="سڕینەوە" onclick="window.pos.confirmDeleteSale('${escapeHtml(sale.sale_id)}')">
                 ✕
               </button>
             </div>
@@ -664,29 +646,25 @@ class PosModule {
   openReceiptModal(sale) {
     const settings = window.db.getSettings();
     const isService = sale.is_service_only;
-    const timeStr = new Date(sale.timestamp).toLocaleString('ar-IQ', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    const dateStr = getBaghdadDate(sale.timestamp);
+    const timeStr = getBaghdadTime(sale.timestamp);
+    const fullTimeStr = `${dateStr} ${timeStr}`;
 
     const receiptHtml = `
       <div class="receipt-paper print-area" id="printable_receipt">
         <div class="receipt-header">
-          <div class="shop-title">${settings.receipt_header || settings.store_name}</div>
-          <div class="shop-meta">${settings.phone || ''}</div>
-          <div class="shop-meta">${settings.address || ''}</div>
+          <div class="shop-title">${escapeHtml(settings.receipt_header || settings.store_name)}</div>
+          <div class="shop-meta">${escapeHtml(settings.phone || '')}</div>
+          <div class="shop-meta">${escapeHtml(settings.address || '')}</div>
         </div>
 
         <div class="receipt-info-row">
-          <span>ژمارەی وەسڵ: <strong>#${sale.receipt_no}</strong></span>
-          <span>کاتی فرۆشتن: ${timeStr}</span>
+          <span>ژمارەی وەسڵ: <strong>#${escapeHtml(sale.receipt_no)}</strong></span>
+          <span>کاتی فرۆشتن: ${fullTimeStr}</span>
         </div>
         ${sale.customer_name ? `
           <div class="receipt-info-row">
-            <span>کڕیار: <strong>${sale.customer_name}</strong></span>
+            <span>کڕیار: <strong>${escapeHtml(sale.customer_name)}</strong></span>
           </div>
         ` : ''}
 
@@ -702,15 +680,15 @@ class PosModule {
             ${!isService ? `
               <tr>
                 <td>
-                  <div>${sale.item_type || 'مریشکی زیندوو'}</div>
-                  <div style="font-size: 0.75rem; color: #555;">(${sale.sell_price_per_kg.toLocaleString()} د.ع/کگم)</div>
+                  <div>${escapeHtml(sale.item_type || 'مریشکی زیندوو')}</div>
+                  <div style="font-size: 0.75rem; color: #555;">(${Number(sale.sell_price_per_kg).toLocaleString()} د.ع/کگم)</div>
                 </td>
                 <td style="text-align: center;">
                   <div>${sale.chickens_count} دانە</div>
                   <div>${sale.weight_kg} کگم</div>
                 </td>
                 <td style="text-align: left; font-weight: 700;">
-                  ${sale.meat_price.toLocaleString()}
+                  ${Number(sale.meat_price).toLocaleString()}
                 </td>
               </tr>
             ` : ''}
@@ -719,11 +697,11 @@ class PosModule {
               <tr>
                 <td>
                   <div>✂️ خزمەتگوزاری پاککردن و بڕین</div>
-                  <div style="font-size: 0.75rem; color: #555;">(پەلەوەری کڕیار: ${sale.service_target_name || 'مریشک'})</div>
+                  <div style="font-size: 0.75rem; color: #555;">(پەلەوەری کڕیار: ${escapeHtml(sale.service_target_name || 'مریشک')})</div>
                 </td>
                 <td style="text-align: center;">${sale.chickens_count} دانە</td>
                 <td style="text-align: left; font-weight: 700;">
-                  ${sale.cleaning_total_fee.toLocaleString()}
+                  ${Number(sale.cleaning_total_fee).toLocaleString()}
                 </td>
               </tr>
             ` : (sale.is_cleaned ? `
@@ -731,7 +709,7 @@ class PosModule {
                 <td>کرێی پاککردن و بڕین</td>
                 <td style="text-align: center;">${sale.chickens_count} دانە</td>
                 <td style="text-align: left; font-weight: 700;">
-                  ${sale.cleaning_total_fee.toLocaleString()}
+                  ${Number(sale.cleaning_total_fee).toLocaleString()}
                 </td>
               </tr>
             ` : '')}
@@ -741,12 +719,12 @@ class PosModule {
         <div class="receipt-total-box">
           <div class="receipt-total-row">
             <span>کۆی گشتی:</span>
-            <span>${sale.total_amount.toLocaleString()} د.ع</span>
+            <span>${Number(sale.total_amount).toLocaleString()} د.ع</span>
           </div>
         </div>
 
         <div class="receipt-footer">
-          <div>${settings.receipt_footer || 'سوپاس بۆ سەردانەکەتان'}</div>
+          <div>${escapeHtml(settings.receipt_footer || 'سوپاس بۆ سەردانەکەتان')}</div>
           <div style="margin-top: 4px; font-size: 0.65rem; color: #888;">سیستەمی پێشکەوتووی سەرگەڵو POS</div>
         </div>
       </div>
@@ -757,7 +735,7 @@ class PosModule {
       container.innerHTML = receiptHtml;
     }
 
-    window.app.openModal('receipt_modal');
+    if (window.app) window.app.openModal('receipt_modal');
 
     // Auto-trigger print if enabled in settings
     if (settings.auto_print_receipt) {
@@ -770,10 +748,13 @@ class PosModule {
   confirmDeleteSale(saleId) {
     if (confirm('ئایا دڵنیایت لە هەڵوەشاندنەوە و سڕینەوەی ئەم وەسڵە؟ ڕەسیدی کۆگا نوێ دەکرێتەوە.')) {
       window.db.deleteSale(saleId);
-      window.app.showToast('وەسڵەکە سڕایەوە', 'danger');
-      window.app.playSound('delete');
+      if (window.app) {
+        window.app.showToast('وەسڵەکە سڕایەوە', 'danger');
+        window.app.playSound('delete');
+      }
     }
   }
 }
 
+// Global instance
 window.pos = new PosModule();

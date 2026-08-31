@@ -1,6 +1,7 @@
 /**
  * Sargalu Chicken POS - Ad-hoc & Monthly Expenses Module (خەرجییە کاتی و مانگانەکان)
  * Rent, Electricity, Gas, Feed, Bags, and custom operating expenses
+ * Asia/Baghdad timezone, validation, XSS safety
  */
 
 class ExpensesModule {
@@ -148,15 +149,16 @@ class ExpensesModule {
       if (!desc) desc = this.selectedCategory || 'خەرجی گشتی';
 
       let unitType = unitTypeInput ? unitTypeInput.value.trim() : 'بڕی پارە';
-      let qty = qtyInput ? (parseFloat(qtyInput.value) || 1) : 1;
-      qty = Math.max(0.01, Math.abs(qty));
+      let qty = qtyInput ? parseFloat(qtyInput.value) : 1;
+      let totalCost = totalCostInput ? parseFloat(totalCostInput.value) : 0;
 
-      let totalCost = totalCostInput ? (parseFloat(totalCostInput.value) || 0) : 0;
-      totalCost = Math.max(0, Math.abs(totalCost));
-
-      if (totalCost <= 0) {
+      if (isNaN(totalCost) || totalCost <= 0) {
         if (window.app) window.app.showToast('تکایە بڕی پارەی خەرجی بە دینار بنووسە', 'warning');
         if (totalCostInput) totalCostInput.focus();
+        return;
+      }
+      if (isNaN(qty) || qty <= 0) {
+        if (window.app) window.app.showToast('تکایە بڕی خەرجی بە درووستی بنووسە', 'warning');
         return;
       }
 
@@ -165,7 +167,7 @@ class ExpensesModule {
         description: desc,
         unit_type: unitType || 'بڕی پارە',
         quantity: qty,
-        unit_price: Math.round(totalCost / (qty || 1)),
+        unit_price: Math.round(totalCost / qty),
         total_cost: totalCost
       };
 
@@ -182,7 +184,7 @@ class ExpensesModule {
       this.setPreset(this.selectedCategory);
     } catch (err) {
       console.error('Error submitting expense:', err);
-      if (window.app) window.app.showToast('کێشەیەک ڕوویدا لە تۆمارکردن', 'danger');
+      if (window.app) window.app.showToast(err.message || 'کێشەیەک ڕوویدا لە تۆمارکردن', 'danger');
     }
   }
 
@@ -191,17 +193,17 @@ class ExpensesModule {
     const todayTotalBadge = document.getElementById('expenses_today_total');
     if (!tbody || !window.db) return;
 
-    const expenses = window.db.getExpenses();
+    const todayStr = getBaghdadDate();
+    const todayExpenses = window.db.getExpensesByDate(todayStr);
+    const allExpenses = window.db.getExpenses();
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayExpenses = expenses.filter(e => (e.timestamp || '').startsWith(todayStr));
     const todayTotal = todayExpenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
 
     if (todayTotalBadge) {
       todayTotalBadge.textContent = `${todayTotal.toLocaleString()} د.ع`;
     }
 
-    if (expenses.length === 0) {
+    if (allExpenses.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="6" class="empty-state">
@@ -214,7 +216,7 @@ class ExpensesModule {
       return;
     }
 
-    tbody.innerHTML = expenses.slice(0, 50).map(exp => {
+    tbody.innerHTML = allExpenses.slice(0, 50).map(exp => {
       let icon = '💸';
       if (exp.category === 'کرێی دوکان') icon = '🏢';
       else if (exp.category === 'کارەبا') icon = '⚡';
@@ -225,26 +227,24 @@ class ExpensesModule {
       const isMonthly = exp.category === 'کرێی دوکان' || exp.category === 'کارەبا';
       const badgeClass = isMonthly ? 'badge-primary' : 'badge-warning';
 
-      let timeLabel = '';
-      try {
-        const d = new Date(exp.timestamp);
-        timeLabel = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-      } catch (e) {
-        timeLabel = '';
-      }
+      const dateStr = getBaghdadDate(exp.timestamp);
+      const timeStr = getBaghdadTime(exp.timestamp);
+      const isToday = dateStr === todayStr;
 
       return `
         <tr>
           <td>
-            <span class="badge ${badgeClass}">${icon} ${exp.category}</span>
-            ${timeLabel ? `<div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${timeLabel}</div>` : ''}
+            <span class="badge ${badgeClass}">${icon} ${escapeHtml(exp.category)}</span>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+              ${isToday ? 'ئەمڕۆ ' : dateStr + ' '}${timeStr}
+            </div>
           </td>
-          <td><strong>${exp.description}</strong></td>
-          <td>${exp.quantity} ${exp.unit_type || ''}</td>
+          <td><strong>${escapeHtml(exp.description)}</strong></td>
+          <td>${exp.quantity} ${escapeHtml(exp.unit_type || '')}</td>
           <td>${exp.unit_price ? Number(exp.unit_price).toLocaleString() + ' د.ع' : '-'}</td>
           <td><strong style="color: var(--danger); font-size: 1.05rem;">${Number(exp.total_cost).toLocaleString()} د.ع</strong></td>
           <td>
-            <button type="button" class="btn-delete" onclick="window.expenses.deleteExpense('${exp.expense_id}')" title="سڕینەوە">
+            <button type="button" class="btn-delete" onclick="window.expenses.deleteExpense('${escapeHtml(exp.expense_id)}')" title="سڕینەوە">
               🗑️
             </button>
           </td>
