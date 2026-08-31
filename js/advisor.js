@@ -29,8 +29,14 @@ class SmartAdvisorModule {
       }
     });
 
-    // Apply Strategy Price Buttons
+    // Apply Strategy Price & Navigation Buttons
     document.addEventListener('click', (e) => {
+      const switchBtn = e.target.closest('.btn-advisor-switch-pos');
+      if (switchBtn && window.app) {
+        window.app.switchTab('pos');
+        return;
+      }
+
       const applyBtn = e.target.closest('.btn-apply-strategy-price');
       if (applyBtn) {
         const price = parseFloat(applyBtn.getAttribute('data-price'));
@@ -153,7 +159,7 @@ class SmartAdvisorModule {
               </div>
             </div>
           </div>
-          <button type="button" class="btn-primary touch-btn" onclick="window.app.switchTab('pos')" style="padding: 0.6rem 1.25rem; font-weight: 800;">
+          <button type="button" class="btn-primary touch-btn btn-advisor-switch-pos" style="padding: 0.6rem 1.25rem; font-weight: 800;">
             ⚡ چوون بۆ شاشەی فرۆشتن ⟵
           </button>
         </div>

@@ -1,6 +1,7 @@
 /**
  * Sargalu Chicken POS - Dead Loss & Mortality Module (مرداربوونەوە و لەدەستچوون)
  * Stock deduction, loss financial cost calculation, reason tracking, Baghdad timezone, XSS safety
+ * Event Delegation (No Inline onclick handlers)
  */
 
 class LossesModule {
@@ -71,6 +72,20 @@ class LossesModule {
         this.submitLoss();
       });
     }
+
+    // Event delegation for deleting losses (Eliminating inline onclick)
+    const tableBody = document.getElementById('losses_table_body');
+    if (tableBody) {
+      tableBody.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-loss');
+        if (deleteBtn) {
+          const lossId = deleteBtn.getAttribute('data-id');
+          if (isSafeRecordId(lossId)) {
+            this.confirmDeleteLoss(lossId);
+          }
+        }
+      });
+    }
   }
 
   updateEstimatedValues(isCustomWeight = false) {
@@ -80,9 +95,9 @@ class LossesModule {
     const activeBatch = window.db ? window.db.getActiveBatch() : null;
     const settings = window.db ? window.db.getSettings() : { default_buy_price_per_kg: 2250 };
 
-    const avgWeight = activeBatch && activeBatch.avg_weight_per_bird > 0
-      ? activeBatch.avg_weight_per_bird
-      : (activeBatch && activeBatch.average_weight_per_chicken > 0 ? activeBatch.average_weight_per_chicken : 1.9);
+    const avgWeight = activeBatch && activeBatch.average_weight_per_chicken > 0
+      ? activeBatch.average_weight_per_chicken
+      : (activeBatch && activeBatch.avg_weight_per_bird > 0 ? activeBatch.avg_weight_per_bird : 1.9);
 
     const buyPrice = activeBatch ? activeBatch.buy_price_per_kg : settings.default_buy_price_per_kg;
 
@@ -196,7 +211,7 @@ class LossesModule {
           <td><strong style="color: var(--danger); font-size: 1.05rem;">${Number(l.loss_financial_cost).toLocaleString()} د.ع</strong></td>
           <td><span class="badge badge-danger">${escapeHtml(l.reason)}</span></td>
           <td>
-            <button type="button" class="btn-delete" onclick="window.losses.confirmDeleteLoss('${escapeHtml(l.loss_id)}')" title="سڕینەوە">
+            <button type="button" class="btn-delete btn-delete-loss" data-id="${escapeHtml(l.loss_id)}" title="سڕینەوە">
               🗑️
             </button>
           </td>
@@ -206,11 +221,18 @@ class LossesModule {
   }
 
   confirmDeleteLoss(lossId) {
+    if (!isSafeRecordId(lossId)) return;
     if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم تۆماری زیانە؟')) {
-      window.db.deleteLoss(lossId);
-      if (window.app) {
-        window.app.playSound('delete');
-        window.app.showToast('زیانەکە سڕایەوە', 'info');
+      try {
+        window.db.deleteLoss(lossId);
+        if (window.app) {
+          window.app.playSound('delete');
+          window.app.showToast('زیانەکە سڕایەوە', 'info');
+        }
+      } catch (err) {
+        if (window.app) {
+          window.app.showToast(err.message || 'هەڵە لە سڕینەوەی زیان', 'warning');
+        }
       }
     }
   }

@@ -1,172 +1,166 @@
 /**
  * Sargalu Chicken POS - Main Application Controller
- * Tab switching, Web Audio Sound Synth, Modals, Toasts, Settings & Backup
+ * Handles Navigation, Keypads, Fast Shortkeys, Modals, Print, Backups, Sound
+ * Strict Data Integrity, DOM-safe Notifications, No Silent Coercion
  */
 
 class AppController {
   constructor() {
-    this.audioCtx = null;
+    this.currentTheme = 'dark';
+    this.audioContext = null;
     this.init();
   }
 
   init() {
     this.bindNavigation();
     this.bindModals();
+    this.bindKeyboardShortcuts();
+    this.bindSoundToggle();
     this.bindSettingsForm();
     this.bindBackupActions();
     this.bindGlobalInputSanitization();
     this.initAudioContext();
-    this.registerServiceWorker();
-    this.updateOnlineStatus();
-
-    window.addEventListener('online', () => this.updateOnlineStatus());
-    window.addEventListener('offline', () => this.updateOnlineStatus());
   }
 
-  // Web Audio Synthesizer for tactile touch feedback
+  // Audio Context (Safe Web Audio API synthesizer)
   initAudioContext() {
-    const unlockAudio = () => {
-      if (!this.audioCtx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) {
-          this.audioCtx = new AudioContextClass();
-        }
-      }
-      if (this.audioCtx && this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
-      }
-      document.removeEventListener('touchstart', unlockAudio);
-      document.removeEventListener('click', unlockAudio);
-    };
-    document.addEventListener('touchstart', unlockAudio, { once: true });
-    document.addEventListener('click', unlockAudio, { once: true });
-  }
-
-  playSound(type) {
-    const settings = window.db ? window.db.getSettings() : { enable_sound: true };
-    if (!settings.enable_sound) return;
-
     try {
-      if (!this.audioCtx) {
-        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) this.audioCtx = new AudioContextClass();
-      }
-      if (!this.audioCtx) return;
-
-      const now = this.audioCtx.currentTime;
-
-      if (type === 'beep' || type === 'click') {
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, now);
-        osc.frequency.exponentialRampToValueAtTime(400, now + 0.04);
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.04);
-      } else if (type === 'cash') {
-        // Double ding register chime
-        const osc1 = this.audioCtx.createOscillator();
-        const osc2 = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-
-        osc1.type = 'triangle';
-        osc1.frequency.setValueAtTime(1046.5, now); // C6
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(1318.5, now + 0.08); // E6
-
-        gain.gain.setValueAtTime(0.2, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-        osc1.connect(gain);
-        osc2.connect(gain);
-        gain.connect(this.audioCtx.destination);
-
-        osc1.start(now);
-        osc1.stop(now + 0.15);
-        osc2.start(now + 0.08);
-        osc2.stop(now + 0.35);
-      } else if (type === 'success') {
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, now);
-        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
-        osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      } else if (type === 'toggle') {
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.setValueAtTime(900, now + 0.03);
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.07);
-      } else if (type === 'delete' || type === 'error' || type === 'warning') {
-        const osc = this.audioCtx.createOscillator();
-        const gain = this.audioCtx.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220, now);
-        osc.frequency.linearRampToValueAtTime(110, now + 0.15);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.connect(gain);
-        gain.connect(this.audioCtx.destination);
-        osc.start(now);
-        osc.stop(now + 0.15);
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) {
+        this.audioContext = new AudioCtx();
       }
     } catch (e) {
-      // Audio not supported or blocked
+      console.warn('Web Audio API not supported', e);
+    }
+  }
+
+  playSound(type = 'beep') {
+    const settings = window.db ? window.db.getSettings() : { enable_sound: true };
+    if (!settings.enable_sound || !this.audioContext) return;
+
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    try {
+      const ctx = this.audioContext;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      const now = ctx.currentTime;
+
+      if (type === 'beep') {
+        osc.frequency.setValueAtTime(880, now); // A5
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      } else if (type === 'cash') {
+        // High register two-tone chime
+        osc.frequency.setValueAtTime(1046.5, now); // C6
+        osc.frequency.setValueAtTime(1318.5, now + 0.08); // E6
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'click') {
+        osc.frequency.setValueAtTime(440, now);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+        osc.start(now);
+        osc.stop(now + 0.04);
+      } else if (type === 'delete') {
+        osc.frequency.setValueAtTime(300, now);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'toggle') {
+        osc.frequency.setValueAtTime(659.25, now); // E5
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+        osc.start(now);
+        osc.stop(now + 0.06);
+      } else if (type === 'warning' || type === 'error') {
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.setValueAtTime(180, now + 0.1);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.25);
+      } else if (type === 'success') {
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      }
+    } catch (e) {
+      console.warn('Sound play error:', e);
     }
   }
 
   // Navigation
   bindNavigation() {
-    document.querySelectorAll('.nav-tab[data-tab]').forEach(tab => {
+    document.querySelectorAll('.nav-tab').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const tabId = e.currentTarget.getAttribute('data-tab');
         this.switchTab(tabId);
         this.playSound('click');
       });
     });
-
-    // Fullscreen button
-    const fsBtn = document.getElementById('btn_toggle_fullscreen');
-    if (fsBtn) {
-      fsBtn.addEventListener('click', () => {
-        if (!document.fullscreenElement) {
-          document.documentElement.requestFullscreen().catch(() => {});
-        } else {
-          document.exitFullscreen().catch(() => {});
-        }
-      });
-    }
-
-    // Sound toggle in header
-    const soundBtn = document.getElementById('btn_toggle_sound');
-    if (soundBtn) {
-      soundBtn.addEventListener('click', () => {
-        const settings = window.db.getSettings();
-        settings.enable_sound = !settings.enable_sound;
-        window.db.saveSettings(settings);
-        soundBtn.classList.toggle('active', settings.enable_sound);
-        this.showToast(settings.enable_sound ? 'دەنگ کارا کرا 🔊' : 'دەنگ بێدەنگ کرا 🔇', 'info');
-      });
-    }
   }
 
+  // Keyboard shortcuts
+  bindKeyboardShortcuts() {
+    window.addEventListener('keydown', (e) => {
+      // Avoid hotkeys when typing in text or search inputs
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      const isInput = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
+      // Global F-keys
+      if (e.key === 'F1') {
+        e.preventDefault();
+        this.switchTab('pos');
+      } else if (e.key === 'F2') {
+        e.preventDefault();
+        this.switchTab('batches');
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        this.switchTab('expenses');
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        this.switchTab('losses');
+      } else if (e.key === 'F5') {
+        // Allow F5 refresh or customize if needed
+      } else if (e.key === 'F6') {
+        e.preventDefault();
+        this.switchTab('advisor');
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        this.switchTab('reports');
+      } else if (e.key === 'F10') {
+        e.preventDefault();
+        this.switchTab('settings');
+      } else if (e.key === 'Escape') {
+        this.closeAllModals();
+      }
+
+      // Enter key in POS: Save and print
+      if (e.key === 'Enter' && !isInput) {
+        const activeTab = document.querySelector('.tab-pane.active');
+        if (activeTab && activeTab.id === 'tab_pos' && window.pos) {
+          window.pos.submitSale(true);
+        }
+      }
+    });
+  }
+
+  // Strict Input Sanitization (Forbids minus, exponents, and invalid pastes without silent coercion)
   bindGlobalInputSanitization() {
     // 1. Intercept keydown to forbid minus (-), plus (+), and exponential (e, E) in all number inputs
     document.addEventListener('keydown', (e) => {
@@ -177,25 +171,17 @@ class AppController {
       }
     });
 
-    // 2. Intercept paste events to sanitize pasted negative text
+    // 2. Intercept paste events: If pasted value is negative or invalid, prevent paste and show toast warning
     document.addEventListener('paste', (e) => {
       if (e.target && e.target.type === 'number') {
         const text = (e.clipboardData || window.clipboardData)?.getData('text');
-        if (text && (text.includes('-') || text.includes('e') || text.includes('E'))) {
-          e.preventDefault();
-          const clean = Math.abs(parseFloat(text)) || '';
-          e.target.value = clean;
-          e.target.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      }
-    });
-
-    // 3. Live sanitize any negative value on input/change events across the whole app
-    document.addEventListener('input', (e) => {
-      if (e.target && e.target.type === 'number') {
-        const val = parseFloat(e.target.value);
-        if (!isNaN(val) && val < 0) {
-          e.target.value = Math.abs(val);
+        if (text) {
+          const trimmed = text.trim();
+          const parsed = Number(trimmed);
+          if (trimmed.includes('-') || trimmed.includes('e') || trimmed.includes('E') || !Number.isFinite(parsed) || parsed < 0) {
+            e.preventDefault();
+            this.showToast('داخڵکردنی ژمارەی سالب یان نادرووست ڕێگەپێدراو نییە', 'warning');
+          }
         }
       }
     });
@@ -223,10 +209,17 @@ class AppController {
 
     document.querySelectorAll('.btn-close-modal').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const modal = e.target.closest('.modal-backdrop');
-        if (modal) this.closeModal(modal.id);
+        const modal = e.currentTarget.closest('.modal-backdrop');
+        if (modal) {
+          this.closeModal(modal.id);
+        }
       });
     });
+
+    const printModalBtn = document.getElementById('btn_modal_print_receipt');
+    if (printModalBtn) {
+      printModalBtn.addEventListener('click', () => window.print());
+    }
   }
 
   openModal(modalId) {
@@ -243,7 +236,11 @@ class AppController {
     }
   }
 
-  // Toast Notifications
+  closeAllModals() {
+    document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.remove('active'));
+  }
+
+  // Toast Notifications (Using DOM Text Nodes for complete XSS safety)
   showToast(message, type = 'info') {
     const container = document.getElementById('toast_container');
     if (!container) return;
@@ -259,7 +256,7 @@ class AppController {
     const iconSpan = document.createElement('span');
     iconSpan.textContent = icon;
     const msgSpan = document.createElement('span');
-    msgSpan.textContent = message;
+    msgSpan.textContent = String(message);
 
     toast.appendChild(iconSpan);
     toast.appendChild(msgSpan);
@@ -281,38 +278,71 @@ class AppController {
     if (form) {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const updated = {
-          store_name: document.getElementById('setting_store_name').value.trim(),
-          phone: document.getElementById('setting_phone').value.trim(),
-          address: document.getElementById('setting_address').value.trim(),
-          receipt_header: document.getElementById('setting_receipt_header').value.trim(),
-          receipt_footer: document.getElementById('setting_receipt_footer').value.trim(),
-          cleaning_fee_per_chicken: parseFloat(document.getElementById('setting_cleaning_fee').value) || 1500,
-          cleaning_fee_old_chicken: parseFloat(document.getElementById('setting_cleaning_fee_old_chicken').value) || 2000,
-          cleaning_fee_goose: parseFloat(document.getElementById('setting_cleaning_fee_goose').value) || 3500,
-          cleaning_fee_turkey: parseFloat(document.getElementById('setting_cleaning_fee_turkey').value) || 5000,
-          monthly_rent: parseFloat(document.getElementById('setting_monthly_rent').value) || 350000,
-          default_sell_price_per_kg: parseFloat(document.getElementById('setting_sell_price').value) || 2750,
-          default_buy_price_per_kg: parseFloat(document.getElementById('setting_buy_price').value) || 2250,
-          auto_print_receipt: document.getElementById('setting_auto_print').checked,
-          enable_sound: document.getElementById('setting_sound_enabled').checked
-        };
+        try {
+          const rawCleanFee = parseFloat(document.getElementById('setting_cleaning_fee').value);
+          const rawCleanOld = parseFloat(document.getElementById('setting_cleaning_fee_old_chicken').value);
+          const rawCleanGoose = parseFloat(document.getElementById('setting_cleaning_fee_goose').value);
+          const rawCleanTurkey = parseFloat(document.getElementById('setting_cleaning_fee_turkey').value);
+          const rawRent = parseFloat(document.getElementById('setting_monthly_rent').value);
+          const rawSellPrice = parseFloat(document.getElementById('setting_sell_price').value);
+          const rawBuyPrice = parseFloat(document.getElementById('setting_buy_price').value);
 
-        window.db.saveSettings(updated);
-        this.showToast('ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران', 'success');
-        this.playSound('success');
+          const updated = {
+            store_name: document.getElementById('setting_store_name').value.trim(),
+            phone: document.getElementById('setting_phone').value.trim(),
+            address: document.getElementById('setting_address').value.trim(),
+            receipt_header: document.getElementById('setting_receipt_header').value.trim(),
+            receipt_footer: document.getElementById('setting_receipt_footer').value.trim(),
+            cleaning_fee_per_chicken: rawCleanFee,
+            cleaning_fee_old_chicken: rawCleanOld,
+            cleaning_fee_goose: rawCleanGoose,
+            cleaning_fee_turkey: rawCleanTurkey,
+            monthly_rent: rawRent,
+            default_sell_price_per_kg: rawSellPrice,
+            default_buy_price_per_kg: rawBuyPrice,
+            auto_print_receipt: document.getElementById('setting_auto_print').checked,
+            enable_sound: document.getElementById('setting_sound_enabled').checked
+          };
+
+          window.db.saveSettings(updated);
+          this.showToast('ڕێکخستنەکان بە سەرکەوتوویی پاشەکەوت کران', 'success');
+          this.playSound('success');
+        } catch (err) {
+          console.error('Settings save error:', err);
+          this.showToast(err.message || 'هەڵە لە پاشەکەوتکردنی ڕێکخستنەکان', 'danger');
+          this.playSound('warning');
+        }
       });
     }
   }
 
   populateSettingsForm(s) {
-    if (document.getElementById('setting_cleaning_fee_goose')) document.getElementById('setting_cleaning_fee_goose').value = s.cleaning_fee_goose ?? 3500;
-    if (document.getElementById('setting_cleaning_fee_turkey')) document.getElementById('setting_cleaning_fee_turkey').value = s.cleaning_fee_turkey ?? 5000;
-    if (document.getElementById('setting_monthly_rent')) document.getElementById('setting_monthly_rent').value = s.monthly_rent ?? 350000;
-    if (document.getElementById('setting_sell_price')) document.getElementById('setting_sell_price').value = s.default_sell_price_per_kg ?? 2750;
-    if (document.getElementById('setting_buy_price')) document.getElementById('setting_buy_price').value = s.default_buy_price_per_kg ?? 2250;
-    if (document.getElementById('setting_auto_print')) document.getElementById('setting_auto_print').checked = Boolean(s.auto_print_receipt);
-    if (document.getElementById('setting_sound_enabled')) document.getElementById('setting_sound_enabled').checked = Boolean(s.enable_sound);
+    if (!s) return;
+    const map = {
+      setting_store_name: s.store_name,
+      setting_phone: s.phone,
+      setting_address: s.address,
+      setting_receipt_header: s.receipt_header,
+      setting_receipt_footer: s.receipt_footer,
+      setting_cleaning_fee: s.cleaning_fee_per_chicken,
+      setting_cleaning_fee_old_chicken: s.cleaning_fee_old_chicken,
+      setting_cleaning_fee_goose: s.cleaning_fee_goose,
+      setting_cleaning_fee_turkey: s.cleaning_fee_turkey,
+      setting_monthly_rent: s.monthly_rent,
+      setting_sell_price: s.default_sell_price_per_kg,
+      setting_buy_price: s.default_buy_price_per_kg
+    };
+
+    Object.entries(map).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el && val !== undefined) el.value = val;
+    });
+
+    const autoPrintEl = document.getElementById('setting_auto_print');
+    if (autoPrintEl) autoPrintEl.checked = Boolean(s.auto_print_receipt);
+
+    const soundEl = document.getElementById('setting_sound_enabled');
+    if (soundEl) soundEl.checked = Boolean(s.enable_sound);
 
     const soundHeaderBtn = document.getElementById('btn_toggle_sound');
     if (soundHeaderBtn) {
@@ -331,6 +361,7 @@ class AppController {
         const blob = new Blob([str], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
+        a.href = url;
         const backupDate = typeof getBaghdadDate === 'function' ? getBaghdadDate() : new Date().toISOString().slice(0, 10);
         a.download = `sargalu_backup_${backupDate}.json`;
         a.click();
@@ -358,6 +389,7 @@ class AppController {
             setTimeout(() => location.reload(), 800);
           } else {
             this.showToast('هەڵە لە فایلی داتادا: ' + res.error, 'danger');
+            this.playSound('warning');
           }
         };
         reader.readAsText(file);
@@ -368,62 +400,48 @@ class AppController {
     const seedBtn = document.getElementById('btn_seed_demo');
     if (seedBtn) {
       seedBtn.addEventListener('click', () => {
-        if (confirm('ئایا دەتەوێت داتای تاقیکاری بار، فرۆشتن و خەرجی بۆ ئەمڕۆ پڕبکەیتەوە؟')) {
-          window.db.seedDemoData();
-          this.showToast('داتای نموونەیی بە سەرکەوتوویی بارکرا', 'success');
-          this.playSound('success');
-        }
-      });
-    }
-
-    // Clear All Data
-    const clearBtn = document.getElementById('btn_clear_all');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        if (confirm('ئاگاداربە! ئەم کارە تەواوی داتاکانی فرۆشتن، بار و خەرجی دەسڕێتەوە. ئایا دڵنیایت؟')) {
+        if (confirm('ئایا دڵنیایت لە بارکردنی داتای نموونەیی؟ داتاکانی ئێستا دەسڕدرێنەوە.')) {
           window.db.clearAllData();
-          this.showToast('تەواوی داتاکان سڕانەوە', 'danger');
-          this.playSound('delete');
+          window.db.seedDemoData();
+          this.showToast('داتای تاقیکردنەوە بە سەرکەوتوویی بارکرا', 'success');
+          this.playSound('success');
+          setTimeout(() => location.reload(), 600);
+        }
+      });
+    }
+
+    // Reset All Data
+    const resetBtn = document.getElementById('btn_reset_all_data');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        if (confirm('⚠️ ئاگاداری: ئایا بە تەواوی دڵنیایت لە سڕینەوەی سەرجەم داتاکان (بار، فرۆشتن، زیان و خەرجی)؟ ئەم کردارە ناگەڕێتەوە.')) {
+          if (confirm('دووپاتکردنەوە: تکایە دڵنیابە پێش سڕینەوە باکئەپت دابەزاندبێت. سڕینەوە ئەنجام بدرێت؟')) {
+            window.db.clearAllData();
+            this.showToast('سەرجەم داتاکان سڕانەوە', 'danger');
+            this.playSound('delete');
+            setTimeout(() => location.reload(), 600);
+          }
         }
       });
     }
   }
 
-  updateOnlineStatus() {
-    const badge = document.getElementById('network_status_badge');
-    if (!badge) return;
-    if (navigator.onLine) {
-      badge.innerHTML = `<span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span> ئۆنلاین`;
-      badge.className = 'badge badge-success';
-    } else {
-      badge.innerHTML = `<span style="width: 8px; height: 8px; background: #eab308; border-radius: 50%; display: inline-block;"></span> ئۆفلاین (PWA)`;
-      badge.className = 'badge badge-warning';
-    }
-  }
-
-  registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then((reg) => {
-            console.log('Sargalu PWA Service Worker Registered');
-            reg.update();
-          })
-          .catch((err) => console.log('SW registration skipped:', err));
+  bindSoundToggle() {
+    const btn = document.getElementById('btn_toggle_sound');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const s = window.db.getSettings();
+        const newVal = !s.enable_sound;
+        window.db.saveSettings({ enable_sound: newVal });
+        btn.classList.toggle('active', newVal);
+        this.showToast(newVal ? 'دەنگی سیستەم چالاککرا' : 'دەنگی سیستەم بێدەنگکرا', 'info');
+        if (newVal) this.playSound('success');
       });
-    }
-
-    // Request permanent persistent storage on device
-    if (navigator.storage && navigator.storage.persist) {
-      navigator.storage.persist().then((persistent) => {
-        if (persistent) {
-          console.log('Storage is locked and will never be cleared automatically');
-        }
-      }).catch(() => {});
     }
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Global initialization
+window.addEventListener('DOMContentLoaded', () => {
   window.app = new AppController();
 });

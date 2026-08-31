@@ -35,8 +35,8 @@ assert(settings.cleaning_fee_per_chicken === 1500, 'Default cleaning fee is 1500
 assert(settings.monthly_rent === 350000, 'Default monthly rent is 350,000 IQD');
 
 // 2. Batch Creation Test
-const today = new Date().toISOString().slice(0, 10);
-const currentMonth = today.slice(0, 7);
+const today = global.getBaghdadDate();
+const currentMonth = global.getBaghdadMonth();
 
 const newBatch = db.saveBatch({
   date: today,

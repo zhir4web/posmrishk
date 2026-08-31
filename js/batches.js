@@ -1,7 +1,7 @@
 /**
  * Sargalu Chicken POS - Batches Module (داخڵکردنی باری نوێ - مەخزەن)
  * Simplified fields: Cages count, Total chickens, Total weight, Buy price, Sell price & Total cost
- * Asia/Baghdad timezone, live remaining stock, XSS safety
+ * Asia/Baghdad timezone, live remaining stock, XSS safety, Deletion Protection, Event Delegation
  */
 
 class BatchesModule {
@@ -49,6 +49,30 @@ class BatchesModule {
         this.saveBatch();
       });
     }
+
+    // Event delegation on Batches Table (Eliminating inline onclick handlers)
+    const tableBody = document.getElementById('batches_table_body');
+    if (tableBody) {
+      tableBody.addEventListener('click', (e) => {
+        const activateBtn = e.target.closest('.btn-activate-batch');
+        if (activateBtn) {
+          const batchId = activateBtn.getAttribute('data-id');
+          if (isSafeRecordId(batchId) && window.db) {
+            window.db.setActiveBatch(batchId);
+            if (window.app) window.app.playSound('click');
+          }
+          return;
+        }
+
+        const deleteBtn = e.target.closest('.btn-delete-batch');
+        if (deleteBtn) {
+          const batchId = deleteBtn.getAttribute('data-id');
+          if (isSafeRecordId(batchId)) {
+            this.confirmDeleteBatch(batchId);
+          }
+        }
+      });
+    }
   }
 
   updateBatchCalculations() {
@@ -93,7 +117,7 @@ class BatchesModule {
       if (window.app) window.app.showToast('تکایە کۆی کێشی بارەکە بە درووستی دیاری بکە', 'warning');
       return;
     }
-    if (isNaN(buyPrice) || buyPrice <= 0 || isNaN(sellPrice) || sellPrice <= 0) {
+    if (isNaN(buyPrice) || buyPrice < 0 || isNaN(sellPrice) || sellPrice < 0) {
       if (window.app) window.app.showToast('تکایە نرخی کڕین و فرۆشتن بە درووستی بنووسە', 'warning');
       return;
     }
@@ -106,6 +130,7 @@ class BatchesModule {
       cages_count: cagesCount,
       total_chickens: totalChickens,
       total_weight_kg: totalWeight,
+      average_weight_per_chicken: avgWeightPerBird,
       avg_weight_per_bird: avgWeightPerBird,
       buy_price_per_kg: buyPrice,
       sell_price_per_kg: sellPrice
@@ -185,11 +210,11 @@ class BatchesModule {
           <td>
             <div style="display: flex; gap: 0.4rem; justify-content: flex-end;">
               ${!isActive ? `
-                <button type="button" class="touch-btn" onclick="window.db.setActiveBatch('${escapeHtml(b.batch_id)}')" style="background: var(--surface-alt); padding: 0.25rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700;">
+                <button type="button" class="touch-btn btn-activate-batch" data-id="${escapeHtml(b.batch_id)}" style="background: var(--surface-alt); padding: 0.25rem 0.6rem; border-radius: var(--radius-sm); font-size: 0.8rem; font-weight: 700;">
                   کاراکردن
                 </button>
               ` : ''}
-              <button type="button" class="action-mini-btn delete" title="سڕینەوە" onclick="window.batches.confirmDeleteBatch('${escapeHtml(b.batch_id)}')">
+              <button type="button" class="action-mini-btn delete btn-delete-batch" data-id="${escapeHtml(b.batch_id)}" title="سڕینەوە">
                 ✕
               </button>
             </div>
@@ -200,11 +225,20 @@ class BatchesModule {
   }
 
   confirmDeleteBatch(batchId) {
+    if (!isSafeRecordId(batchId)) return;
     if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم بارە؟')) {
-      window.db.deleteBatch(batchId);
-      if (window.app) {
-        window.app.showToast('بارەکە سڕایەوە', 'danger');
-        window.app.playSound('delete');
+      try {
+        window.db.deleteBatch(batchId);
+        if (window.app) {
+          window.app.showToast('بارەکە سڕایەوە', 'danger');
+          window.app.playSound('delete');
+        }
+      } catch (err) {
+        console.warn('Batch deletion blocked:', err);
+        if (window.app) {
+          window.app.showToast(err.message || 'ناتوانرێت ئەم بارە بسڕدرێتەوە', 'warning');
+          window.app.playSound('warning');
+        }
       }
     }
   }

@@ -1,6 +1,7 @@
 /**
  * Sargalu Chicken POS - Fast POS Module (شاشەی فرۆشتنی خێرا)
  * Multi-Poultry Support + Batch Cost Linking + Strict Inventory Validation + XSS Safety
+ * Event Delegation (No Inline onclick handlers)
  */
 
 class PosModule {
@@ -152,6 +153,40 @@ class PosModule {
     if (saveOnlyBtn) {
       saveOnlyBtn.addEventListener('click', () => {
         this.submitSale(false);
+      });
+    }
+
+    // 10. Event delegation for Batch Banner Button
+    const bannerEl = document.getElementById('pos_batch_banner');
+    if (bannerEl) {
+      bannerEl.addEventListener('click', (e) => {
+        const gotoBtn = e.target.closest('.btn-goto-batches');
+        if (gotoBtn && window.app) {
+          window.app.switchTab('batches');
+        }
+      });
+    }
+
+    // 11. Event delegation for Sales Feed Print & Delete actions (Eliminating inline onclick)
+    const listEl = document.getElementById('pos_sales_feed_list');
+    if (listEl) {
+      listEl.addEventListener('click', (e) => {
+        const printBtn = e.target.closest('.btn-print-sale');
+        if (printBtn) {
+          const saleId = printBtn.getAttribute('data-id');
+          if (isSafeRecordId(saleId)) {
+            this.openReceiptModalById(saleId);
+          }
+          return;
+        }
+
+        const deleteBtn = e.target.closest('.btn-delete-sale');
+        if (deleteBtn) {
+          const saleId = deleteBtn.getAttribute('data-id');
+          if (isSafeRecordId(saleId)) {
+            this.confirmDeleteSale(saleId);
+          }
+        }
       });
     }
   }
@@ -411,7 +446,7 @@ class PosModule {
             <div style="font-size: 0.85rem; opacity: 0.9;">نرخی فرۆشتنی سەرەتا: ${effectiveSellPrice.toLocaleString()} د.ع/کگم</div>
           </div>
         </div>
-        <button type="button" class="touch-btn" onclick="window.app.switchTab('batches')" style="background: white; color: var(--primary); padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 800; font-size: 0.85rem;">
+        <button type="button" class="touch-btn btn-goto-batches" style="background: white; color: var(--primary); padding: 0.4rem 0.9rem; border-radius: var(--radius-md); font-weight: 800; font-size: 0.85rem;">
           داخڵکردنی باری نوێ ⟵
         </button>
       `;
@@ -512,7 +547,7 @@ class PosModule {
       chickens_count: this.currentSale.chickens_count,
       weight_kg: isService ? 0 : this.currentSale.weight_kg,
       sell_price_per_kg: sellPrice,
-      is_cleaned: isService ? true : this.currentSale.is_cleaned,
+      is_cleaned: isCleaned,
       cleaning_fee_per_chicken: cleaningFee,
       item_type: isService ? 'تەنها پاککردن' : this.selectedPoultryType,
       is_service_only: isService,
@@ -622,10 +657,10 @@ class PosModule {
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <div class="sale-item-amount">${Number(sale.total_amount).toLocaleString()} <span style="font-size: 0.7rem; font-weight: normal;">د.ع</span></div>
             <div class="sale-item-actions">
-              <button type="button" class="action-mini-btn" title="چاپکردنەوە" onclick="window.pos.openReceiptModalById('${escapeHtml(sale.sale_id)}')">
+              <button type="button" class="action-mini-btn btn-print-sale" data-id="${escapeHtml(sale.sale_id)}" title="چاپکردنەوە">
                 🖨️
               </button>
-              <button type="button" class="action-mini-btn delete" title="سڕینەوە" onclick="window.pos.confirmDeleteSale('${escapeHtml(sale.sale_id)}')">
+              <button type="button" class="action-mini-btn delete btn-delete-sale" data-id="${escapeHtml(sale.sale_id)}" title="سڕینەوە">
                 ✕
               </button>
             </div>
@@ -636,6 +671,7 @@ class PosModule {
   }
 
   openReceiptModalById(saleId) {
+    if (!isSafeRecordId(saleId)) return;
     const sales = window.db.getSales();
     const sale = sales.find(s => s.sale_id === saleId);
     if (sale) {
@@ -746,11 +782,18 @@ class PosModule {
   }
 
   confirmDeleteSale(saleId) {
+    if (!isSafeRecordId(saleId)) return;
     if (confirm('ئایا دڵنیایت لە هەڵوەشاندنەوە و سڕینەوەی ئەم وەسڵە؟ ڕەسیدی کۆگا نوێ دەکرێتەوە.')) {
-      window.db.deleteSale(saleId);
-      if (window.app) {
-        window.app.showToast('وەسڵەکە سڕایەوە', 'danger');
-        window.app.playSound('delete');
+      try {
+        window.db.deleteSale(saleId);
+        if (window.app) {
+          window.app.showToast('وەسڵەکە سڕایەوە', 'danger');
+          window.app.playSound('delete');
+        }
+      } catch (err) {
+        if (window.app) {
+          window.app.showToast(err.message || 'هەڵە لە سڕینەوەی وەسڵ', 'warning');
+        }
       }
     }
   }

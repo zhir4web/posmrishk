@@ -2,7 +2,8 @@
  * Sargalu Chicken POS - Database Engine
  * Storage Engine: LocalStorage with reactive state updates & JSON backup/restore
  * Strict Data Integrity, Asia/Baghdad Timezone, Batch Cost Linking, Cross-Day Stock,
- * Receipt Sequence Persistence, Transactional Import Validation, XSS Safety
+ * Receipt Sequence Persistence, Transactional Import Validation, XSS Safety,
+ * Strict Settings & Expense Validation, Batch Deletion Protection
  */
 
 const DB_KEYS = {
@@ -35,7 +36,7 @@ const DEFAULT_SETTINGS = {
   currency_symbol: 'د.ع'
 };
 
-// ---------------- TIMEZONE & DATE HELPERS (Asia/Baghdad) ----------------
+// ---------------- TIMEZONE & SECURITY HELPERS ----------------
 
 /**
  * Returns YYYY-MM-DD in Asia/Baghdad timezone
@@ -107,7 +108,15 @@ function getBaghdadTime(dateOrTimestamp = new Date()) {
 }
 
 /**
- * XSS HTML Escaping helper
+ * Validates that an ID matches safe alphanumeric string pattern [A-Za-z0-9_-]+
+ */
+function isSafeRecordId(id) {
+  if (typeof id !== 'string') return false;
+  return /^[A-Za-z0-9_-]+$/.test(id);
+}
+
+/**
+ * XSS HTML Escaping helper for visible text
  */
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -124,11 +133,13 @@ if (typeof window !== 'undefined') {
   window.getBaghdadDate = getBaghdadDate;
   window.getBaghdadMonth = getBaghdadMonth;
   window.getBaghdadTime = getBaghdadTime;
+  window.isSafeRecordId = isSafeRecordId;
   window.escapeHtml = escapeHtml;
 } else if (typeof global !== 'undefined') {
   global.getBaghdadDate = getBaghdadDate;
   global.getBaghdadMonth = getBaghdadMonth;
   global.getBaghdadTime = getBaghdadTime;
+  global.isSafeRecordId = isSafeRecordId;
   global.escapeHtml = escapeHtml;
 }
 
@@ -182,22 +193,75 @@ class Database {
   }
 
   saveSettings(settings) {
-    if (!settings || typeof settings !== 'object') return;
-    const current = this.getSettings();
-    const updated = { ...current, ...settings };
-    
-    // Strict sanitation of numeric fields
-    if (updated.cleaning_fee_per_chicken !== undefined) updated.cleaning_fee_per_chicken = Math.max(0, Number(updated.cleaning_fee_per_chicken) || 0);
-    if (updated.cleaning_fee_old_chicken !== undefined) updated.cleaning_fee_old_chicken = Math.max(0, Number(updated.cleaning_fee_old_chicken) || 0);
-    if (updated.cleaning_fee_goose !== undefined) updated.cleaning_fee_goose = Math.max(0, Number(updated.cleaning_fee_goose) || 0);
-    if (updated.cleaning_fee_turkey !== undefined) updated.cleaning_fee_turkey = Math.max(0, Number(updated.cleaning_fee_turkey) || 0);
-    if (updated.monthly_rent !== undefined) updated.monthly_rent = Math.max(0, Number(updated.monthly_rent) || 0);
-    if (updated.default_sell_price_per_kg !== undefined) updated.default_sell_price_per_kg = Math.max(0, Number(updated.default_sell_price_per_kg) || 0);
-    if (updated.default_buy_price_per_kg !== undefined) updated.default_buy_price_per_kg = Math.max(0, Number(updated.default_buy_price_per_kg) || 0);
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      throw new Error('ڕێکخستنەکان نادرووستە');
+    }
 
-    localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(updated));
-    this.notify('settings_updated', updated);
-    return updated;
+    const current = this.getSettings();
+    const candidate = { ...current };
+
+    // String fields validation
+    if (settings.store_name !== undefined) {
+      if (typeof settings.store_name !== 'string') throw new Error('ناوی دوکان نادرووستە');
+      candidate.store_name = settings.store_name.trim() || DEFAULT_SETTINGS.store_name;
+    }
+    if (settings.phone !== undefined) {
+      candidate.phone = typeof settings.phone === 'string' ? settings.phone.trim() : '';
+    }
+    if (settings.address !== undefined) {
+      candidate.address = typeof settings.address === 'string' ? settings.address.trim() : '';
+    }
+    if (settings.receipt_header !== undefined) {
+      candidate.receipt_header = typeof settings.receipt_header === 'string' ? settings.receipt_header.trim() : '';
+    }
+    if (settings.receipt_footer !== undefined) {
+      candidate.receipt_footer = typeof settings.receipt_footer === 'string' ? settings.receipt_footer.trim() : '';
+    }
+
+    // Cleaning fees validation: Allow >= 0, finite number (0 is supported for free service)
+    const feeFields = [
+      ['cleaning_fee_per_chicken', 'کرێی پاککردنی مریشک'],
+      ['cleaning_fee_old_chicken', 'کرێی پاککردنی مریشکی پیر'],
+      ['cleaning_fee_goose', 'کرێی پاککردنی قاز'],
+      ['cleaning_fee_turkey', 'کرێی پاککردنی قەل']
+    ];
+
+    for (const [key, label] of feeFields) {
+      if (settings[key] !== undefined) {
+        const val = Number(settings[key]);
+        if (!Number.isFinite(val) || val < 0) {
+          throw new Error(`${label} دەبێت ژمارەیەکی درووست و صفر یان گەورەتر بێت`);
+        }
+        candidate[key] = val;
+      }
+    }
+
+    // Positive required fields: monthly_rent, default_sell_price_per_kg, default_buy_price_per_kg
+    const positiveFields = [
+      ['monthly_rent', 'کرێی مانگانەی دوکان'],
+      ['default_sell_price_per_kg', 'نرخی فرۆشتنی بنەڕەتی'],
+      ['default_buy_price_per_kg', 'نرخی کڕینی بنەڕەتی']
+    ];
+
+    for (const [key, label] of positiveFields) {
+      if (settings[key] !== undefined) {
+        const val = Number(settings[key]);
+        if (!Number.isFinite(val) || val <= 0) {
+          throw new Error(`${label} دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت`);
+        }
+        candidate[key] = val;
+      }
+    }
+
+    if (settings.auto_print_receipt !== undefined) candidate.auto_print_receipt = Boolean(settings.auto_print_receipt);
+    if (settings.enable_sound !== undefined) candidate.enable_sound = Boolean(settings.enable_sound);
+    if (settings.enable_haptics !== undefined) candidate.enable_haptics = Boolean(settings.enable_haptics);
+    if (settings.printer_width !== undefined) candidate.printer_width = settings.printer_width === '58mm' ? '58mm' : '80mm';
+
+    // Atomic write to LocalStorage
+    localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(candidate));
+    this.notify('settings_updated', candidate);
+    return candidate;
   }
 
   // ---------------- BATCHES (مەخزەن و بارەکان) ----------------
@@ -258,13 +322,20 @@ class Database {
   }
 
   setActiveBatch(batchId) {
+    if (batchId && !isSafeRecordId(batchId)) {
+      throw new Error('ناسنامەی بار نادرووستە');
+    }
     localStorage.setItem(DB_KEYS.ACTIVE_BATCH_ID, batchId);
     this.notify('active_batch_changed', this.getBatchById(batchId));
   }
 
   saveBatch(batchData) {
-    if (!batchData || typeof batchData !== 'object') {
+    if (!batchData || typeof batchData !== 'object' || Array.isArray(batchData)) {
       throw new Error('داتای بار نادرووستە');
+    }
+
+    if (batchData.batch_id && !isSafeRecordId(batchData.batch_id)) {
+      throw new Error('ناسنامەی بار نادرووستە');
     }
 
     const batches = this.getBatches();
@@ -281,16 +352,16 @@ class Database {
     const rawSellPrice = Number(batch.sell_price_per_kg);
 
     // Strict validation: Reject negative or non-positive values
-    if (isNaN(rawCages) || rawCages <= 0) {
-      throw new Error('ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە سفر بێت');
+    if (!Number.isFinite(rawCages) || rawCages <= 0) {
+      throw new Error('ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
-    if (isNaN(rawWeight) || rawWeight <= 0) {
+    if (!Number.isFinite(rawWeight) || rawWeight <= 0) {
       throw new Error('کۆی کێشی بارەکە دەبێت گەورەتر بێت لە صفر');
     }
-    if (isNaN(rawBuyPrice) || rawBuyPrice < 0) {
+    if (!Number.isFinite(rawBuyPrice) || rawBuyPrice < 0) {
       throw new Error('نرخی کڕین ناتوانێت سالب بێت');
     }
-    if (isNaN(rawSellPrice) || rawSellPrice < 0) {
+    if (!Number.isFinite(rawSellPrice) || rawSellPrice < 0) {
       throw new Error('نرخی فرۆشتن ناتوانێت سالب بێت');
     }
 
@@ -326,6 +397,27 @@ class Database {
   }
 
   deleteBatch(batchId) {
+    if (!batchId || !isSafeRecordId(batchId)) {
+      throw new Error('ناسنامەی بار نادرووستە');
+    }
+
+    const batch = this.getBatchById(batchId);
+    if (!batch) {
+      throw new Error('ئەم بارە بوونی نییە لە مەخزەن');
+    }
+
+    // 1. Check for linked sales or losses
+    const sales = this.getSales();
+    const losses = this.getLosses();
+
+    const linkedSales = sales.filter(s => s.batch_id === batchId);
+    const linkedLosses = losses.filter(l => l.batch_id === batchId);
+
+    if (linkedSales.length > 0 || linkedLosses.length > 0) {
+      throw new Error(`ناتوانرێت ئەم بارە بسڕدرێتەوە چونکە (${linkedSales.length} فرۆشتن و ${linkedLosses.length} زیان)ی پێوە بەستراوەتەوە و دەبێتە هۆی تێکچوونی مێژووی دارایی و مەخزەن.`);
+    }
+
+    // 2. Perform deletion
     let batches = this.getBatches();
     batches = batches.filter(b => b.batch_id !== batchId);
     localStorage.setItem(DB_KEYS.BATCHES, JSON.stringify(batches));
@@ -341,6 +433,7 @@ class Database {
       }
     }
     this.notify('batches_updated', batches);
+    return true;
   }
 
   // ---------------- BATCH INVENTORY TRACKING (Cross-Day) ----------------
@@ -459,8 +552,15 @@ class Database {
   }
 
   saveSale(saleData) {
-    if (!saleData || typeof saleData !== 'object') {
+    if (!saleData || typeof saleData !== 'object' || Array.isArray(saleData)) {
       throw new Error('داتای فرۆشتن نادرووستە');
+    }
+
+    if (saleData.sale_id && !isSafeRecordId(saleData.sale_id)) {
+      throw new Error('ناسنامەی فرۆشتن نادرووستە');
+    }
+    if (saleData.batch_id && !isSafeRecordId(saleData.batch_id)) {
+      throw new Error('ناسنامەی بار نادرووستە');
     }
 
     const settings = this.getSettings();
@@ -469,20 +569,24 @@ class Database {
 
     const rawCount = parseInt(saleData.chickens_count, 10);
     const rawWeight = Number(saleData.weight_kg);
-    const rawSellPrice = saleData.sell_price_per_kg !== undefined ? Number(saleData.sell_price_per_kg) : null;
-    const rawCleanFee = saleData.cleaning_fee_per_chicken !== undefined ? Number(saleData.cleaning_fee_per_chicken) : null;
+    const rawSellPrice = saleData.sell_price_per_kg !== undefined && saleData.sell_price_per_kg !== null && saleData.sell_price_per_kg !== ''
+      ? Number(saleData.sell_price_per_kg) 
+      : null;
+    const rawCleanFee = saleData.cleaning_fee_per_chicken !== undefined && saleData.cleaning_fee_per_chicken !== null && saleData.cleaning_fee_per_chicken !== ''
+      ? Number(saleData.cleaning_fee_per_chicken) 
+      : null;
 
     // Strict validation: Reject negative or non-positive values
-    if (isNaN(rawCount) || rawCount <= 0) {
+    if (!Number.isFinite(rawCount) || rawCount <= 0) {
       throw new Error('ژمارەی دانە دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
-    if (!isServiceOnly && (isNaN(rawWeight) || rawWeight <= 0)) {
+    if (!isServiceOnly && (!Number.isFinite(rawWeight) || rawWeight <= 0)) {
       throw new Error('کێشی سەر تەرازوو دەبێت گەورەتر بێت لە صفر');
     }
-    if (rawSellPrice !== null && (isNaN(rawSellPrice) || rawSellPrice < 0)) {
+    if (rawSellPrice !== null && (!Number.isFinite(rawSellPrice) || rawSellPrice < 0)) {
       throw new Error('نرخی فرۆشتن ناتوانێت سالب بێت');
     }
-    if (rawCleanFee !== null && (isNaN(rawCleanFee) || rawCleanFee < 0)) {
+    if (rawCleanFee !== null && (!Number.isFinite(rawCleanFee) || rawCleanFee < 0)) {
       throw new Error('کرێی پاککردن ناتوانێت سالب بێت');
     }
 
@@ -523,7 +627,7 @@ class Database {
     const isCleaned = isServiceOnly ? true : Boolean(saleData.is_cleaned);
 
     // Cleaning fee determination
-    let defaultFee = settings.cleaning_fee_per_chicken || 1500;
+    let defaultFee = settings.cleaning_fee_per_chicken !== undefined ? settings.cleaning_fee_per_chicken : 1500;
     if (itemType === 'مریشکی پیر' || saleData.service_target_name === 'مریشکی پیر') defaultFee = settings.cleaning_fee_old_chicken || 2000;
     else if (itemType === 'قاز' || saleData.service_target_name === 'قاز') defaultFee = settings.cleaning_fee_goose || 3500;
     else if (itemType === 'قەل' || saleData.service_target_name === 'قەل') defaultFee = settings.cleaning_fee_turkey || 5000;
@@ -568,6 +672,7 @@ class Database {
   generateReceiptNumber(timestamp = null) {
     const baghdadDate = getBaghdadDate(timestamp || new Date());
     const datePrefix = baghdadDate.replace(/-/g, '');
+    const exactRegex = new RegExp(`^${datePrefix}-(\\d+)$`);
     
     // Read persistent sequence map
     let seqMap = {};
@@ -582,10 +687,10 @@ class Database {
     let maxExistingSeq = 0;
     sales.forEach(s => {
       if (s.receipt_no && typeof s.receipt_no === 'string') {
-        const parts = s.receipt_no.split('-');
-        if (parts.length === 2 && parts[0] === datePrefix) {
-          const num = parseInt(parts[1], 10);
-          if (!isNaN(num) && num > maxExistingSeq) {
+        const match = s.receipt_no.match(exactRegex);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (Number.isFinite(num) && num > maxExistingSeq) {
             maxExistingSeq = num;
           }
         }
@@ -605,6 +710,9 @@ class Database {
   }
 
   deleteSale(saleId) {
+    if (!saleId || !isSafeRecordId(saleId)) {
+      throw new Error('ناسنامەی فرۆشتن نادرووستە');
+    }
     let sales = this.getSales();
     sales = sales.filter(s => s.sale_id !== saleId);
     localStorage.setItem(DB_KEYS.SALES, JSON.stringify(sales));
@@ -631,17 +739,26 @@ class Database {
   }
 
   saveLoss(lossData) {
-    if (!lossData || typeof lossData !== 'object') {
+    if (!lossData || typeof lossData !== 'object' || Array.isArray(lossData)) {
       throw new Error('داتای زیان نادرووستە');
     }
 
-    const rawCount = parseInt(lossData.chickens_count, 10);
-    const rawWeight = lossData.estimated_weight_kg !== undefined ? Number(lossData.estimated_weight_kg) : 0;
+    if (lossData.loss_id && !isSafeRecordId(lossData.loss_id)) {
+      throw new Error('ناسنامەی زیان نادرووستە');
+    }
+    if (lossData.batch_id && !isSafeRecordId(lossData.batch_id)) {
+      throw new Error('ناسنامەی بار نادرووستە');
+    }
 
-    if (isNaN(rawCount) || rawCount <= 0) {
+    const rawCount = parseInt(lossData.chickens_count, 10);
+    const rawWeight = lossData.estimated_weight_kg !== undefined && lossData.estimated_weight_kg !== null && lossData.estimated_weight_kg !== ''
+      ? Number(lossData.estimated_weight_kg) 
+      : 0;
+
+    if (!Number.isFinite(rawCount) || rawCount <= 0) {
       throw new Error('ژمارەی مریشکی مرداربوو دەبێت لە صفر گەورەتر بێت');
     }
-    if (isNaN(rawWeight) || rawWeight < 0) {
+    if (!Number.isFinite(rawWeight) || rawWeight < 0) {
       throw new Error('کێشی زیان ناتوانێت سالب بێت');
     }
 
@@ -696,6 +813,9 @@ class Database {
   }
 
   deleteLoss(lossId) {
+    if (!lossId || !isSafeRecordId(lossId)) {
+      throw new Error('ناسنامەی زیان نادرووستە');
+    }
     let losses = this.getLosses();
     losses = losses.filter(l => l.loss_id !== lossId);
     localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify(losses));
@@ -722,24 +842,37 @@ class Database {
   }
 
   saveExpense(expenseData) {
-    if (!expenseData || typeof expenseData !== 'object') {
+    if (!expenseData || typeof expenseData !== 'object' || Array.isArray(expenseData)) {
       throw new Error('داتای خەرجی نادرووستە');
     }
 
-    const rawTotal = Number(expenseData.total_cost);
-    const rawQty = expenseData.quantity !== undefined ? Number(expenseData.quantity) : 1;
-    const rawUnitPrice = expenseData.unit_price !== undefined ? Number(expenseData.unit_price) : null;
+    if (expenseData.expense_id && !isSafeRecordId(expenseData.expense_id)) {
+      throw new Error('ناسنامەی خەرجی نادرووستە');
+    }
 
-    if (isNaN(rawTotal) || rawTotal <= 0) {
+    const rawTotal = Number(expenseData.total_cost);
+    const rawQty = expenseData.quantity !== undefined && expenseData.quantity !== null && expenseData.quantity !== '' 
+      ? Number(expenseData.quantity) 
+      : 1;
+
+    // Validate total_cost and quantity first
+    if (!Number.isFinite(rawTotal) || rawTotal <= 0) {
       throw new Error('بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
-    if (isNaN(rawQty) || rawQty <= 0) {
-      throw new Error('بڕی خەرجی دەبێت گەورەتر بێت لە صفر');
+    if (!Number.isFinite(rawQty) || rawQty <= 0) {
+      throw new Error('بڕی (چەندێتی) خەرجی دەبێت گەورەتر بێت لە صفر');
     }
 
-    const totalCost = rawTotal;
-    const quantity = rawQty;
-    const unitPrice = rawUnitPrice !== null && rawUnitPrice > 0 ? rawUnitPrice : Math.round(totalCost / quantity);
+    let unitPrice = 0;
+    if (expenseData.unit_price !== undefined && expenseData.unit_price !== null && expenseData.unit_price !== '') {
+      const suppliedUnitPrice = Number(expenseData.unit_price);
+      if (!Number.isFinite(suppliedUnitPrice) || suppliedUnitPrice <= 0) {
+        throw new Error('نرخی تاک ناتوانێت سالب یان صفر بێت');
+      }
+      unitPrice = suppliedUnitPrice;
+    } else {
+      unitPrice = Math.round(rawTotal / rawQty);
+    }
 
     const expenses = this.getExpenses();
     const expense = {
@@ -748,9 +881,9 @@ class Database {
       category: (expenseData.category || 'خەرجی تر').trim(),
       description: (expenseData.description || expenseData.category || 'خەرجی گشتی').trim(),
       unit_type: (expenseData.unit_type || 'دانە').trim(),
-      quantity: quantity,
+      quantity: rawQty,
       unit_price: unitPrice,
-      total_cost: totalCost
+      total_cost: rawTotal
     };
 
     expenses.unshift(expense);
@@ -760,6 +893,9 @@ class Database {
   }
 
   deleteExpense(expenseId) {
+    if (!expenseId || !isSafeRecordId(expenseId)) {
+      throw new Error('ناسنامەی خەرجی نادرووستە');
+    }
     let expenses = this.getExpenses();
     expenses = expenses.filter(e => e.expense_id !== expenseId);
     localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify(expenses));
@@ -1029,16 +1165,16 @@ class Database {
   importAllData(jsonData) {
     try {
       const parsed = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-      if (!parsed || typeof parsed !== 'object') {
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
         return { success: false, error: 'فایلی پاشەکەوت دەبێت فۆرماتی درووستی JSON بێت' };
       }
 
       const data = parsed.data || parsed;
-      if (!data || typeof data !== 'object') {
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
         return { success: false, error: 'پێکهاتەی فایلی پاشەکەوت نادرووستە' };
       }
 
-      // 1. Transactional Pre-Validation: Validate everything before writing to storage
+      // 1. Transactional Pre-Validation: Validate everything before touching storage
 
       // Validate Settings if present
       if (data.settings !== undefined) {
@@ -1046,28 +1182,59 @@ class Database {
           return { success: false, error: 'ڕێکخستنەکان لە فایلی هاوردەکراو دەبێت ئۆبجێکت بێت' };
         }
         const s = data.settings;
-        if (s.cleaning_fee_per_chicken !== undefined && (isNaN(Number(s.cleaning_fee_per_chicken)) || Number(s.cleaning_fee_per_chicken) < 0)) {
-          return { success: false, error: 'نرخی پاککردن ناتوانێت سالب بێت' };
+        if (s.cleaning_fee_per_chicken !== undefined && (!Number.isFinite(Number(s.cleaning_fee_per_chicken)) || Number(s.cleaning_fee_per_chicken) < 0)) {
+          return { success: false, error: 'نرخی پاککردن ناتوانێت سالب یان نادرووست بێت' };
         }
-        if (s.monthly_rent !== undefined && (isNaN(Number(s.monthly_rent)) || Number(s.monthly_rent) < 0)) {
-          return { success: false, error: 'کرێی مانگانە ناتوانێت سالب بێت' };
+        if (s.monthly_rent !== undefined && (!Number.isFinite(Number(s.monthly_rent)) || Number(s.monthly_rent) <= 0)) {
+          return { success: false, error: 'کرێی مانگانە دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت' };
+        }
+        if (s.default_sell_price_per_kg !== undefined && (!Number.isFinite(Number(s.default_sell_price_per_kg)) || Number(s.default_sell_price_per_kg) <= 0)) {
+          return { success: false, error: 'نرخی فرۆشتنی بنەڕەتی دەبێت گەورەتر لە صفر بێت' };
+        }
+        if (s.default_buy_price_per_kg !== undefined && (!Number.isFinite(Number(s.default_buy_price_per_kg)) || Number(s.default_buy_price_per_kg) <= 0)) {
+          return { success: false, error: 'نرخی کڕینی بنەڕەتی دەبێت گەورەتر لە صفر بێت' };
         }
       }
 
       // Validate Batches if present
+      const validBatchIds = new Set();
       if (data.batches !== undefined) {
         if (!Array.isArray(data.batches)) {
           return { success: false, error: 'لیستی بارەکان دەبێت Array بێت' };
         }
-        for (const b of data.batches) {
-          if (!b || typeof b !== 'object') {
-            return { success: false, error: 'تۆماری بار لە فایلی داتادا نادرووستە' };
+        for (let i = 0; i < data.batches.length; i++) {
+          const b = data.batches[i];
+          if (!b || typeof b !== 'object' || Array.isArray(b)) {
+            return { success: false, error: `تۆماری باری ژمارە ${i + 1} لە فایلی داتادا نادرووستە` };
           }
-          if (b.total_weight_kg !== undefined && (isNaN(Number(b.total_weight_kg)) || Number(b.total_weight_kg) <= 0)) {
-            return { success: false, error: 'کێشی بار دەبێت ژمارەیەکی درووست و گەورەتر بێت لە صفر' };
+          if (b.batch_id !== undefined && !isSafeRecordId(b.batch_id)) {
+            return { success: false, error: `ناسنامەی باری ژمارە ${i + 1} نادرووستە` };
           }
-          if (b.buy_price_per_kg !== undefined && (isNaN(Number(b.buy_price_per_kg)) || Number(b.buy_price_per_kg) < 0)) {
-            return { success: false, error: 'نرخی کڕینی بار ناتوانێت سالب بێت' };
+          if (b.batch_id) validBatchIds.add(b.batch_id);
+
+          if (b.timestamp !== undefined) {
+            const d = new Date(b.timestamp);
+            if (isNaN(d.getTime())) return { success: false, error: `کاتی باری ژمارە ${i + 1} نادرووستە` };
+          }
+          if (b.created_at !== undefined) {
+            const d = new Date(b.created_at);
+            if (isNaN(d.getTime())) return { success: false, error: `کاتی باری ژمارە ${i + 1} نادرووستە` };
+          }
+
+          if (b.total_weight_kg !== undefined && (!Number.isFinite(Number(b.total_weight_kg)) || Number(b.total_weight_kg) <= 0)) {
+            return { success: false, error: `کێشی باری ژمارە ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (b.cages_count !== undefined && (!Number.isFinite(Number(b.cages_count)) || Number(b.cages_count) <= 0)) {
+            return { success: false, error: `ژمارەی قەفەزی باری ژمارە ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (b.buy_price_per_kg !== undefined && (!Number.isFinite(Number(b.buy_price_per_kg)) || Number(b.buy_price_per_kg) < 0)) {
+            return { success: false, error: `نرخی کڕینی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (b.sell_price_per_kg !== undefined && (!Number.isFinite(Number(b.sell_price_per_kg)) || Number(b.sell_price_per_kg) < 0)) {
+            return { success: false, error: `نرخی فرۆشتنی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (b.total_cost !== undefined && (!Number.isFinite(Number(b.total_cost)) || Number(b.total_cost) < 0)) {
+            return { success: false, error: `تێچووی گشتی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
           }
         }
       }
@@ -1077,18 +1244,47 @@ class Database {
         if (!Array.isArray(data.sales)) {
           return { success: false, error: 'لیستی فرۆشتنەکان دەبێت Array بێت' };
         }
-        for (const s of data.sales) {
-          if (!s || typeof s !== 'object') {
-            return { success: false, error: 'تۆماری فرۆشتن نادرووستە' };
+        for (let i = 0; i < data.sales.length; i++) {
+          const s = data.sales[i];
+          if (!s || typeof s !== 'object' || Array.isArray(s)) {
+            return { success: false, error: `تۆماری فرۆشتنی ژمارە ${i + 1} نادرووستە` };
           }
-          if (s.chickens_count !== undefined && (isNaN(Number(s.chickens_count)) || Number(s.chickens_count) <= 0)) {
-            return { success: false, error: 'ژمارەی دانەی فرۆشراو دەبێت گەورەتر بێت لە صفر' };
+          if (s.sale_id !== undefined && !isSafeRecordId(s.sale_id)) {
+            return { success: false, error: `ناسنامەی فرۆشتنی ژمارە ${i + 1} نادرووستە` };
           }
-          if (s.weight_kg !== undefined && (isNaN(Number(s.weight_kg)) || Number(s.weight_kg) < 0)) {
-            return { success: false, error: 'کێشی فرۆشراو ناتوانێت سالب بێت' };
+          if (s.batch_id !== undefined && s.batch_id !== null && !isSafeRecordId(s.batch_id)) {
+            return { success: false, error: `ناسنامەی باری بەستراوە لە فرۆشتنی ${i + 1} نادرووستە` };
           }
-          if (s.total_amount !== undefined && (isNaN(Number(s.total_amount)) || Number(s.total_amount) < 0)) {
-            return { success: false, error: 'کۆی پارەی فرۆشراو ناتوانێت سالب بێت' };
+          if (s.timestamp !== undefined) {
+            const d = new Date(s.timestamp);
+            if (isNaN(d.getTime())) return { success: false, error: `کاتی تۆمارکردنی فرۆشتنی ${i + 1} نادرووستە` };
+          }
+          if (s.chickens_count !== undefined && (!Number.isFinite(Number(s.chickens_count)) || Number(s.chickens_count) <= 0)) {
+            return { success: false, error: `ژمارەی دانەی فرۆشتنی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (s.weight_kg !== undefined && (!Number.isFinite(Number(s.weight_kg)) || Number(s.weight_kg) < 0)) {
+            return { success: false, error: `کێشی فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.total_amount !== undefined && (!Number.isFinite(Number(s.total_amount)) || Number(s.total_amount) < 0)) {
+            return { success: false, error: `کۆی پارەی فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.sell_price_per_kg !== undefined && (!Number.isFinite(Number(s.sell_price_per_kg)) || Number(s.sell_price_per_kg) < 0)) {
+            return { success: false, error: `نرخی فرۆشتنی کیلۆ لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.buy_price_per_kg !== undefined && (!Number.isFinite(Number(s.buy_price_per_kg)) || Number(s.buy_price_per_kg) < 0)) {
+            return { success: false, error: `نرخی کڕینی کیلۆ لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.cleaning_fee_per_chicken !== undefined && (!Number.isFinite(Number(s.cleaning_fee_per_chicken)) || Number(s.cleaning_fee_per_chicken) < 0)) {
+            return { success: false, error: `کرێی پاککردن لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.meat_price !== undefined && (!Number.isFinite(Number(s.meat_price)) || Number(s.meat_price) < 0)) {
+            return { success: false, error: `نرخی گۆشت لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.cleaning_total_fee !== undefined && (!Number.isFinite(Number(s.cleaning_total_fee)) || Number(s.cleaning_total_fee) < 0)) {
+            return { success: false, error: `کۆی کرێی پاککردن لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (s.cost_of_goods !== undefined && (!Number.isFinite(Number(s.cost_of_goods)) || Number(s.cost_of_goods) < 0)) {
+            return { success: false, error: `تێچووی کڕین (COGS) لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
           }
         }
       }
@@ -1098,15 +1294,32 @@ class Database {
         if (!Array.isArray(data.losses)) {
           return { success: false, error: 'لیستی زیانەکان دەبێت Array بێت' };
         }
-        for (const l of data.losses) {
-          if (!l || typeof l !== 'object') {
-            return { success: false, error: 'تۆماری زیان نادرووستە' };
+        for (let i = 0; i < data.losses.length; i++) {
+          const l = data.losses[i];
+          if (!l || typeof l !== 'object' || Array.isArray(l)) {
+            return { success: false, error: `تۆماری زیانی ژمارە ${i + 1} نادرووستە` };
           }
-          if (l.chickens_count !== undefined && (isNaN(Number(l.chickens_count)) || Number(l.chickens_count) <= 0)) {
-            return { success: false, error: 'ژمارەی زیان دەبێت گەورەتر بێت لە صفر' };
+          if (l.loss_id !== undefined && !isSafeRecordId(l.loss_id)) {
+            return { success: false, error: `ناسنامەی زیانی ژمارە ${i + 1} نادرووستە` };
           }
-          if (l.estimated_weight_kg !== undefined && (isNaN(Number(l.estimated_weight_kg)) || Number(l.estimated_weight_kg) < 0)) {
-            return { success: false, error: 'کێشی زیان ناتوانێت سالب بێت' };
+          if (l.batch_id !== undefined && l.batch_id !== null && !isSafeRecordId(l.batch_id)) {
+            return { success: false, error: `ناسنامەی باری بەستراوە لە زیانی ${i + 1} نادرووستە` };
+          }
+          if (l.timestamp !== undefined) {
+            const d = new Date(l.timestamp);
+            if (isNaN(d.getTime())) return { success: false, error: `کاتی زیانی ژمارە ${i + 1} نادرووستە` };
+          }
+          if (l.chickens_count !== undefined && (!Number.isFinite(Number(l.chickens_count)) || Number(l.chickens_count) <= 0)) {
+            return { success: false, error: `ژمارەی زیانی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (l.estimated_weight_kg !== undefined && (!Number.isFinite(Number(l.estimated_weight_kg)) || Number(l.estimated_weight_kg) < 0)) {
+            return { success: false, error: `کێشی زیانی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (l.buy_price_per_kg !== undefined && (!Number.isFinite(Number(l.buy_price_per_kg)) || Number(l.buy_price_per_kg) < 0)) {
+            return { success: false, error: `نرخی کڕین لە زیانی ${i + 1} ناتوانێت سالب بێت` };
+          }
+          if (l.loss_financial_cost !== undefined && (!Number.isFinite(Number(l.loss_financial_cost)) || Number(l.loss_financial_cost) < 0)) {
+            return { success: false, error: `تێچووی دارایی زیانی ${i + 1} ناتوانێت سالب بێت` };
           }
         }
       }
@@ -1116,23 +1329,59 @@ class Database {
         if (!Array.isArray(data.expenses)) {
           return { success: false, error: 'لیستی خەرجییەکان دەبێت Array بێت' };
         }
-        for (const e of data.expenses) {
-          if (!e || typeof e !== 'object') {
-            return { success: false, error: 'تۆماری خەرجی نادرووستە' };
+        for (let i = 0; i < data.expenses.length; i++) {
+          const e = data.expenses[i];
+          if (!e || typeof e !== 'object' || Array.isArray(e)) {
+            return { success: false, error: `تۆماری خەرجی ژمارە ${i + 1} نادرووستە` };
           }
-          if (e.total_cost !== undefined && (isNaN(Number(e.total_cost)) || Number(e.total_cost) <= 0)) {
-            return { success: false, error: 'بڕی پارەی خەرجی دەبێت گەورەتر بێت لە صفر' };
+          if (e.expense_id !== undefined && !isSafeRecordId(e.expense_id)) {
+            return { success: false, error: `ناسنامەی خەرجی ژمارە ${i + 1} نادرووستە` };
+          }
+          if (e.timestamp !== undefined) {
+            const d = new Date(e.timestamp);
+            if (isNaN(d.getTime())) return { success: false, error: `کاتی خەرجی ژمارە ${i + 1} نادرووستە` };
+          }
+          if (e.total_cost !== undefined && (!Number.isFinite(Number(e.total_cost)) || Number(e.total_cost) <= 0)) {
+            return { success: false, error: `بڕی پارەی خەرجی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (e.quantity !== undefined && (!Number.isFinite(Number(e.quantity)) || Number(e.quantity) <= 0)) {
+            return { success: false, error: `چەندێتی خەرجی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (e.unit_price !== undefined && (!Number.isFinite(Number(e.unit_price)) || Number(e.unit_price) <= 0)) {
+            return { success: false, error: `نرخی تاک لە خەرجی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
           }
         }
       }
 
-      // 2. Transactional Write: Only reached if ALL validations pass successfully
+      // Validate receipt_sequences if present
+      if (data.receipt_sequences !== undefined) {
+        if (!data.receipt_sequences || typeof data.receipt_sequences !== 'object' || Array.isArray(data.receipt_sequences)) {
+          return { success: false, error: 'زنجیرەی وەسڵەکان دەبێت ئۆبجێکت بێت' };
+        }
+        for (const [k, v] of Object.entries(data.receipt_sequences)) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !Number.isInteger(Number(v)) || Number(v) < 0) {
+            return { success: false, error: 'زنجیرەی وەسڵی بەروارەکان نادرووستە' };
+          }
+        }
+      }
+
+      // 2. Transactional Write: Only executed if 100% of checks passed
       if (data.settings) localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(data.settings));
       if (data.batches) localStorage.setItem(DB_KEYS.BATCHES, JSON.stringify(data.batches));
       if (data.sales) localStorage.setItem(DB_KEYS.SALES, JSON.stringify(data.sales));
       if (data.losses) localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify(data.losses));
       if (data.expenses) localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify(data.expenses));
       if (data.receipt_sequences) localStorage.setItem(DB_KEYS.RECEIPT_SEQUENCES, JSON.stringify(data.receipt_sequences));
+
+      // Handle active batch id
+      const importedActiveId = data.active_batch_id || parsed.active_batch_id;
+      if (importedActiveId && validBatchIds.has(importedActiveId)) {
+        localStorage.setItem(DB_KEYS.ACTIVE_BATCH_ID, importedActiveId);
+      } else if (data.batches && data.batches.length > 0) {
+        localStorage.setItem(DB_KEYS.ACTIVE_BATCH_ID, data.batches[0].batch_id);
+      } else {
+        localStorage.removeItem(DB_KEYS.ACTIVE_BATCH_ID);
+      }
 
       this.notify('all_data_restored', true);
       return { success: true };

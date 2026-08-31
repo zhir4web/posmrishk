@@ -1,7 +1,7 @@
 /**
  * Sargalu Chicken POS - Ad-hoc & Monthly Expenses Module (خەرجییە کاتی و مانگانەکان)
  * Rent, Electricity, Gas, Feed, Bags, and custom operating expenses
- * Asia/Baghdad timezone, validation, XSS safety
+ * Asia/Baghdad timezone, validation, XSS safety, Event Delegation
  */
 
 class ExpensesModule {
@@ -49,6 +49,20 @@ class ExpensesModule {
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         this.submitExpense();
+      });
+    }
+
+    // Event delegation for deleting expenses (Eliminating inline onclick)
+    const tbody = document.getElementById('expenses_table_body');
+    if (tbody) {
+      tbody.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.btn-delete-expense');
+        if (deleteBtn) {
+          const expenseId = deleteBtn.getAttribute('data-id');
+          if (isSafeRecordId(expenseId)) {
+            this.deleteExpense(expenseId);
+          }
+        }
       });
     }
   }
@@ -244,7 +258,7 @@ class ExpensesModule {
           <td>${exp.unit_price ? Number(exp.unit_price).toLocaleString() + ' د.ع' : '-'}</td>
           <td><strong style="color: var(--danger); font-size: 1.05rem;">${Number(exp.total_cost).toLocaleString()} د.ع</strong></td>
           <td>
-            <button type="button" class="btn-delete" onclick="window.expenses.deleteExpense('${escapeHtml(exp.expense_id)}')" title="سڕینەوە">
+            <button type="button" class="btn-delete btn-delete-expense" data-id="${escapeHtml(exp.expense_id)}" title="سڕینەوە">
               🗑️
             </button>
           </td>
@@ -254,11 +268,18 @@ class ExpensesModule {
   }
 
   deleteExpense(id) {
+    if (!isSafeRecordId(id)) return;
     if (confirm('ئایا دڵنیایت لە سڕینەوەی ئەم خەرجییە؟')) {
-      if (window.db) window.db.deleteExpense(id);
-      if (window.app) {
-        window.app.playSound('delete');
-        window.app.showToast('خەرجی سڕایەوە', 'info');
+      try {
+        if (window.db) window.db.deleteExpense(id);
+        if (window.app) {
+          window.app.playSound('delete');
+          window.app.showToast('خەرجی سڕایەوە', 'info');
+        }
+      } catch (err) {
+        if (window.app) {
+          window.app.showToast(err.message || 'هەڵە لە سڕینەوەی خەرجی', 'warning');
+        }
       }
     }
   }
