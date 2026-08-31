@@ -1,7 +1,8 @@
 /**
  * Sargalu Chicken POS - Database Engine
  * Storage Engine: LocalStorage with reactive state updates & JSON backup/restore
- * Strict Data Integrity, Asia/Baghdad Timezone, Batch Cost Linking, Cross-Day Stock, XSS Safety
+ * Strict Data Integrity, Asia/Baghdad Timezone, Batch Cost Linking, Cross-Day Stock,
+ * Receipt Sequence Persistence, Transactional Import Validation, XSS Safety
  */
 
 const DB_KEYS = {
@@ -10,7 +11,8 @@ const DB_KEYS = {
   LOSSES: 'sargalu_losses',
   EXPENSES: 'sargalu_expenses',
   SETTINGS: 'sargalu_settings',
-  ACTIVE_BATCH_ID: 'sargalu_active_batch_id'
+  ACTIVE_BATCH_ID: 'sargalu_active_batch_id',
+  RECEIPT_SEQUENCES: 'sargalu_pos_receipt_sequences'
 };
 
 const DEFAULT_SETTINGS = {
@@ -58,11 +60,18 @@ function getBaghdadDate(dateOrTimestamp = new Date()) {
     const yyyy = getPart('year');
     const mm = getPart('month');
     const dd = getPart('day');
-    return `${yyyy}-${mm}-${dd}`;
+    if (yyyy && mm && dd) {
+      return `${yyyy}-${mm}-${dd}`;
+    }
   } catch (e) {
-    // Fallback if Intl formatToParts fails
-    return d.toISOString().slice(0, 10);
+    console.error('Baghdad date formatting error:', e);
   }
+
+  // Fallback if Intl fails
+  const utc = d.getTime() + (d.getTimezoneOffset() * 60000);
+  const baghdadOffset = 3 * 3600000; // UTC+3
+  const baghdadDate = new Date(utc + baghdadOffset);
+  return baghdadDate.toISOString().slice(0, 10);
 }
 
 /**
@@ -74,7 +83,7 @@ function getBaghdadMonth(dateOrTimestamp = new Date()) {
 }
 
 /**
- * Returns formatted HH:MM time in Asia/Baghdad
+ * Returns HH:MM in Asia/Baghdad timezone (24h format)
  */
 function getBaghdadTime(dateOrTimestamp = new Date()) {
   if (!dateOrTimestamp) dateOrTimestamp = new Date();
@@ -93,12 +102,12 @@ function getBaghdadTime(dateOrTimestamp = new Date()) {
     });
     return formatter.format(d);
   } catch (e) {
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   }
 }
 
 /**
- * Reusable HTML escaping to prevent XSS in template literals
+ * XSS HTML Escaping helper
  */
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -110,6 +119,21 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+// Expose helpers globally
+if (typeof window !== 'undefined') {
+  window.getBaghdadDate = getBaghdadDate;
+  window.getBaghdadMonth = getBaghdadMonth;
+  window.getBaghdadTime = getBaghdadTime;
+  window.escapeHtml = escapeHtml;
+} else if (typeof global !== 'undefined') {
+  global.getBaghdadDate = getBaghdadDate;
+  global.getBaghdadMonth = getBaghdadMonth;
+  global.getBaghdadTime = getBaghdadTime;
+  global.escapeHtml = escapeHtml;
+}
+
+// ---------------- DATABASE CLASS ----------------
+
 class Database {
   constructor() {
     this.listeners = [];
@@ -117,121 +141,125 @@ class Database {
   }
 
   init() {
+    // Initialize default settings if not already present
     if (!localStorage.getItem(DB_KEYS.SETTINGS)) {
       this.saveSettings(DEFAULT_SETTINGS);
     }
-    if (!localStorage.getItem(DB_KEYS.BATCHES)) {
-      localStorage.setItem(DB_KEYS.BATCHES, JSON.stringify([]));
-    }
-    if (!localStorage.getItem(DB_KEYS.SALES)) {
-      localStorage.setItem(DB_KEYS.SALES, JSON.stringify([]));
-    }
-    if (!localStorage.getItem(DB_KEYS.LOSSES)) {
-      localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify([]));
-    }
-    if (!localStorage.getItem(DB_KEYS.EXPENSES)) {
-      localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify([]));
-    }
   }
 
-  // Subscribe to changes
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(cb => cb !== callback);
-    };
+  // Subscribe to changes (Reactive updates)
+  subscribe(fn) {
+    if (typeof fn === 'function') {
+      this.listeners.push(fn);
+    }
   }
 
   notify(event, data) {
-    this.listeners.forEach(cb => {
+    this.listeners.forEach(fn => {
       try {
-        cb(event, data);
-      } catch (err) {
-        console.error('Listener error:', err);
+        fn(event, data);
+      } catch (e) {
+        console.error('Error in db subscriber:', e);
       }
     });
   }
 
-  // UUID generator
+  // Generate unique IDs
   generateId(prefix = 'id') {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
   }
 
-  // Settings
+  // ---------------- SETTINGS ----------------
+
   getSettings() {
     try {
       const data = localStorage.getItem(DB_KEYS.SETTINGS);
       return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
     } catch (e) {
+      console.error('Error reading settings:', e);
       return DEFAULT_SETTINGS;
     }
   }
 
   saveSettings(settings) {
-    if (!settings || typeof settings !== 'object') {
-      throw new Error('ڕێکخستنەکان نادرووستن');
-    }
+    if (!settings || typeof settings !== 'object') return;
+    const current = this.getSettings();
+    const updated = { ...current, ...settings };
+    
+    // Strict sanitation of numeric fields
+    if (updated.cleaning_fee_per_chicken !== undefined) updated.cleaning_fee_per_chicken = Math.max(0, Number(updated.cleaning_fee_per_chicken) || 0);
+    if (updated.cleaning_fee_old_chicken !== undefined) updated.cleaning_fee_old_chicken = Math.max(0, Number(updated.cleaning_fee_old_chicken) || 0);
+    if (updated.cleaning_fee_goose !== undefined) updated.cleaning_fee_goose = Math.max(0, Number(updated.cleaning_fee_goose) || 0);
+    if (updated.cleaning_fee_turkey !== undefined) updated.cleaning_fee_turkey = Math.max(0, Number(updated.cleaning_fee_turkey) || 0);
+    if (updated.monthly_rent !== undefined) updated.monthly_rent = Math.max(0, Number(updated.monthly_rent) || 0);
+    if (updated.default_sell_price_per_kg !== undefined) updated.default_sell_price_per_kg = Math.max(0, Number(updated.default_sell_price_per_kg) || 0);
+    if (updated.default_buy_price_per_kg !== undefined) updated.default_buy_price_per_kg = Math.max(0, Number(updated.default_buy_price_per_kg) || 0);
 
-    const clean = {
-      ...settings,
-      cleaning_fee_per_chicken: Math.max(0, Number(settings.cleaning_fee_per_chicken) || 1500),
-      cleaning_fee_old_chicken: Math.max(0, Number(settings.cleaning_fee_old_chicken) || 2000),
-      cleaning_fee_goose: Math.max(0, Number(settings.cleaning_fee_goose) || 3500),
-      cleaning_fee_turkey: Math.max(0, Number(settings.cleaning_fee_turkey) || 5000),
-      monthly_rent: Math.max(0, Number(settings.monthly_rent) || 350000),
-      default_sell_price_per_kg: Math.max(0, Number(settings.default_sell_price_per_kg) || 2750),
-      default_buy_price_per_kg: Math.max(0, Number(settings.default_buy_price_per_kg) || 2250)
-    };
-    localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(clean));
-    this.notify('settings_updated', clean);
-    return clean;
+    localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(updated));
+    this.notify('settings_updated', updated);
+    return updated;
   }
 
-  // ---------------- BATCHES (باری مەخزەن) ----------------
+  // ---------------- BATCHES (مەخزەن و بارەکان) ----------------
+
   getBatches() {
     try {
       const data = localStorage.getItem(DB_KEYS.BATCHES);
-      return data ? JSON.parse(data) : [];
+      const batches = data ? JSON.parse(data) : [];
+      if (!Array.isArray(batches)) return [];
+      
+      // Normalize legacy batches
+      return batches.map(b => {
+        const totalWeight = Number(b.total_weight_kg) || 0;
+        const totalCount = Number(b.total_chickens) || (Number(b.cages_count) * 25) || 0;
+        const avg = (totalWeight > 0 && totalCount > 0)
+          ? +(totalWeight / totalCount).toFixed(2)
+          : (b.average_weight_per_chicken || b.avg_weight_per_bird || 1.9);
+        
+        return {
+          ...b,
+          average_weight_per_chicken: b.average_weight_per_chicken || avg,
+          avg_weight_per_bird: b.avg_weight_per_bird || b.average_weight_per_chicken || avg
+        };
+      });
     } catch (e) {
+      console.error('Error reading batches:', e);
       return [];
     }
   }
 
-  getBatchById(id) {
-    if (!id) return null;
+  getBatchById(batchId) {
+    if (!batchId) return null;
     const batches = this.getBatches();
-    return batches.find(b => b.batch_id === id) || null;
+    return batches.find(b => b.batch_id === batchId) || null;
   }
 
   getActiveBatch(poultryType = null) {
-    const activeId = localStorage.getItem(DB_KEYS.ACTIVE_BATCH_ID);
     const batches = this.getBatches();
-    
-    if (poultryType) {
-      const typeBatches = batches.filter(b => (b.poultry_type || 'مریشکی ناسک') === poultryType);
-      if (typeBatches.length > 0) {
-        const foundActive = typeBatches.find(b => b.batch_id === activeId);
-        if (foundActive) return foundActive;
-        const sorted = [...typeBatches].sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
-        return sorted[0];
+    if (batches.length === 0) return null;
+
+    const activeId = localStorage.getItem(DB_KEYS.ACTIVE_BATCH_ID);
+    if (activeId) {
+      const found = batches.find(b => b.batch_id === activeId);
+      if (found) {
+        if (!poultryType || !found.poultry_type || found.poultry_type === poultryType) {
+          return found;
+        }
       }
     }
 
-    if (activeId) {
-      const found = batches.find(b => b.batch_id === activeId);
-      if (found) return found;
+    // Fallback: Find latest batch matching poultryType or first batch
+    if (poultryType) {
+      const typeMatch = batches.find(b => (b.poultry_type || 'مریشکی ناسک') === poultryType);
+      if (typeMatch) return typeMatch;
     }
-    // Return latest batch by date if exists
-    if (batches.length > 0) {
-      const sorted = [...batches].sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at));
-      return sorted[0];
-    }
-    return null;
+
+    return batches[0] || null;
   }
 
   setActiveBatch(batchId) {
     localStorage.setItem(DB_KEYS.ACTIVE_BATCH_ID, batchId);
-    this.notify('active_batch_changed', batchId);
+    this.notify('active_batch_changed', this.getBatchById(batchId));
   }
 
   saveBatch(batchData) {
@@ -240,37 +268,37 @@ class Database {
     }
 
     const batches = this.getBatches();
-    let batch = { ...batchData };
+    const batch = { ...batchData };
+    if (!batch.batch_id) {
+      batch.batch_id = this.generateId('batch');
+      batch.created_at = new Date().toISOString();
+    }
 
     const rawCages = parseInt(batch.cages_count, 10);
+    const rawChickens = parseInt(batch.total_chickens, 10);
     const rawWeight = Number(batch.total_weight_kg);
     const rawBuyPrice = Number(batch.buy_price_per_kg);
     const rawSellPrice = Number(batch.sell_price_per_kg);
-    const rawChickens = batch.total_chickens !== undefined ? parseInt(batch.total_chickens, 10) : null;
 
+    // Strict validation: Reject negative or non-positive values
     if (isNaN(rawCages) || rawCages <= 0) {
       throw new Error('ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە سفر بێت');
     }
     if (isNaN(rawWeight) || rawWeight <= 0) {
       throw new Error('کۆی کێشی بارەکە دەبێت گەورەتر بێت لە صفر');
     }
-    if (isNaN(rawBuyPrice) || rawBuyPrice <= 0 || isNaN(rawSellPrice) || rawSellPrice <= 0) {
-      throw new Error('نرخی کڕین و فرۆشتنی ١ کیلۆگرام دەبێت گەورەتر بێت لە صفر');
+    if (isNaN(rawBuyPrice) || rawBuyPrice < 0) {
+      throw new Error('نرخی کڕین ناتوانێت سالب بێت');
     }
-    if (rawChickens !== null && (isNaN(rawChickens) || rawChickens <= 0)) {
-      throw new Error('کۆی ژمارەی مریشکەکان دەبێت گەورەتر بێت لە صفر');
-    }
-
-    if (!batch.batch_id) {
-      batch.batch_id = this.generateId('batch');
-      batch.created_at = new Date().toISOString();
-    } else {
-      batch.updated_at = new Date().toISOString();
+    if (isNaN(rawSellPrice) || rawSellPrice < 0) {
+      throw new Error('نرخی فرۆشتن ناتوانێت سالب بێت');
     }
 
     const poultryType = batch.poultry_type || 'مریشکی ناسک';
-    const totalChickens = rawChickens || Math.max(1, rawCages * 25);
-    const avgWeightPerBird = +(rawWeight / totalChickens).toFixed(2);
+    const totalChickens = rawChickens > 0 ? rawChickens : Math.max(1, rawCages * 25);
+    const avgWeight = (rawWeight > 0 && totalChickens > 0)
+      ? +(rawWeight / totalChickens).toFixed(2)
+      : (batch.average_weight_per_chicken !== undefined ? Number(batch.average_weight_per_chicken) : (batch.avg_weight_per_bird !== undefined ? Number(batch.avg_weight_per_bird) : 1.9));
     const batchDate = batch.date ? getBaghdadDate(batch.date) : getBaghdadDate();
 
     batch.poultry_type = poultryType;
@@ -278,7 +306,8 @@ class Database {
     batch.cages_count = rawCages;
     batch.total_chickens = totalChickens;
     batch.total_weight_kg = rawWeight;
-    batch.avg_weight_per_bird = avgWeightPerBird;
+    batch.average_weight_per_chicken = avgWeight;
+    batch.avg_weight_per_bird = avgWeight; // backward compatible alias
     batch.buy_price_per_kg = rawBuyPrice;
     batch.sell_price_per_kg = rawSellPrice;
     batch.total_cost = Math.round(rawWeight * rawBuyPrice);
@@ -337,33 +366,33 @@ class Database {
 
     const soldWeight = sales.reduce((sum, s) => sum + (Number(s.weight_kg) || 0), 0);
     const soldCount = sales.reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0);
+
     const deadWeight = losses.reduce((sum, l) => sum + (Number(l.estimated_weight_kg) || 0), 0);
     const deadCount = losses.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
 
-    const remainingWeight = Number((receivedWeight - soldWeight - deadWeight).toFixed(2));
+    // Exact remaining stock (do NOT mask with Math.max(0, ...) so deficits are visible)
+    const remainingWeight = +(receivedWeight - soldWeight - deadWeight).toFixed(2);
     const remainingCount = receivedCount - soldCount - deadCount;
 
     return {
-      batch_id: batch.batch_id,
+      batch_id: batchId,
       poultry_type: batch.poultry_type || 'مریشکی ناسک',
-      batch_date: batch.date || getBaghdadDate(batch.created_at),
-      buy_price_per_kg: batch.buy_price_per_kg,
-      sell_price_per_kg: batch.sell_price_per_kg,
+      batch_date: batch.date,
       received_weight: receivedWeight,
       received_count: receivedCount,
-      sold_weight: Number(soldWeight.toFixed(2)),
+      sold_weight: +soldWeight.toFixed(2),
       sold_count: soldCount,
-      dead_weight: Number(deadWeight.toFixed(2)),
+      dead_weight: +deadWeight.toFixed(2),
       dead_count: deadCount,
       remaining_weight: remainingWeight,
       remaining_count: remainingCount,
-      is_oversold: remainingWeight < 0 || remainingCount < 0
+      is_depleted: remainingWeight <= 0,
+      is_oversold: remainingWeight < 0
     };
   }
 
   /**
-   * Calculates total closing inventory across all batches created on or before upToDate.
-   * Exposes any shortfall without forcing balance to zero.
+   * Calculates closing inventory available across all batches up to upToDate.
    */
   getClosingInventory(upToDate = null) {
     const targetDate = upToDate || getBaghdadDate();
@@ -378,40 +407,47 @@ class Database {
     let totalRemainingWeight = 0;
     let totalRemainingCount = 0;
 
-    const batchesDetail = batches.map(b => {
+    const batchBreakdown = [];
+
+    batches.forEach(b => {
       const stock = this.getBatchStock(b.batch_id, targetDate);
-      totalReceivedWeight += stock.received_weight;
-      totalReceivedCount += stock.received_count;
-      totalSoldWeight += stock.sold_weight;
-      totalSoldCount += stock.sold_count;
-      totalDeadWeight += stock.dead_weight;
-      totalDeadCount += stock.dead_count;
-      totalRemainingWeight += stock.remaining_weight;
-      totalRemainingCount += stock.remaining_count;
-      return stock;
+      if (stock) {
+        totalReceivedWeight += stock.received_weight;
+        totalReceivedCount += stock.received_count;
+        totalSoldWeight += stock.sold_weight;
+        totalSoldCount += stock.sold_count;
+        totalDeadWeight += stock.dead_weight;
+        totalDeadCount += stock.dead_count;
+        totalRemainingWeight += stock.remaining_weight;
+        totalRemainingCount += stock.remaining_count;
+        batchBreakdown.push(stock);
+      }
     });
 
     return {
       up_to_date: targetDate,
-      total_received_weight: Number(totalReceivedWeight.toFixed(2)),
+      total_received_weight: +totalReceivedWeight.toFixed(2),
       total_received_count: totalReceivedCount,
-      total_sold_weight: Number(totalSoldWeight.toFixed(2)),
+      total_sold_weight: +totalSoldWeight.toFixed(2),
       total_sold_count: totalSoldCount,
-      total_dead_weight: Number(totalDeadWeight.toFixed(2)),
+      total_dead_weight: +totalDeadWeight.toFixed(2),
       total_dead_count: totalDeadCount,
-      total_remaining_weight: Number(totalRemainingWeight.toFixed(2)),
+      total_remaining_weight: +totalRemainingWeight.toFixed(2),
       total_remaining_count: totalRemainingCount,
-      is_oversold: totalRemainingWeight < 0 || totalRemainingCount < 0,
-      batches: batchesDetail
+      has_shortfall: totalRemainingWeight < 0,
+      batch_breakdown: batchBreakdown
     };
   }
 
-  // ---------------- SALES (فرۆشتن) ----------------
+  // ---------------- SALES (وەسڵ و فرۆشتنەکان) ----------------
+
   getSales() {
     try {
       const data = localStorage.getItem(DB_KEYS.SALES);
-      return data ? JSON.parse(data) : [];
+      const sales = data ? JSON.parse(data) : [];
+      return Array.isArray(sales) ? sales : [];
     } catch (e) {
+      console.error('Error reading sales:', e);
       return [];
     }
   }
@@ -532,9 +568,40 @@ class Database {
   generateReceiptNumber(timestamp = null) {
     const baghdadDate = getBaghdadDate(timestamp || new Date());
     const datePrefix = baghdadDate.replace(/-/g, '');
-    const salesToday = this.getSalesByDate(baghdadDate);
-    const nextSeq = String(salesToday.length + 1).padStart(3, '0');
-    return `${datePrefix}-${nextSeq}`;
+    
+    // Read persistent sequence map
+    let seqMap = {};
+    try {
+      seqMap = JSON.parse(localStorage.getItem(DB_KEYS.RECEIPT_SEQUENCES) || '{}') || {};
+    } catch (e) {
+      seqMap = {};
+    }
+
+    // Inspect all existing sales for this date or matching prefix
+    const sales = this.getSales();
+    let maxExistingSeq = 0;
+    sales.forEach(s => {
+      if (s.receipt_no && typeof s.receipt_no === 'string') {
+        const parts = s.receipt_no.split('-');
+        if (parts.length === 2 && parts[0] === datePrefix) {
+          const num = parseInt(parts[1], 10);
+          if (!isNaN(num) && num > maxExistingSeq) {
+            maxExistingSeq = num;
+          }
+        }
+      }
+    });
+
+    const trackedSeq = parseInt(seqMap[baghdadDate], 10) || 0;
+    const currentMax = Math.max(maxExistingSeq, trackedSeq);
+    const nextSeq = currentMax + 1;
+
+    seqMap[baghdadDate] = nextSeq;
+    try {
+      localStorage.setItem(DB_KEYS.RECEIPT_SEQUENCES, JSON.stringify(seqMap));
+    } catch (e) {}
+
+    return `${datePrefix}-${String(nextSeq).padStart(3, '0')}`;
   }
 
   deleteSale(saleId) {
@@ -544,12 +611,15 @@ class Database {
     this.notify('sales_updated', sales);
   }
 
-  // ---------------- DEAD LOSSES (مرداربوونەوە و زیان) ----------------
+  // ---------------- LOSSES (مرداربوونەوە و لەدەستچوون) ----------------
+
   getLosses() {
     try {
       const data = localStorage.getItem(DB_KEYS.LOSSES);
-      return data ? JSON.parse(data) : [];
+      const losses = data ? JSON.parse(data) : [];
+      return Array.isArray(losses) ? losses : [];
     } catch (e) {
+      console.error('Error reading losses:', e);
       return [];
     }
   }
@@ -566,13 +636,13 @@ class Database {
     }
 
     const rawCount = parseInt(lossData.chickens_count, 10);
-    const rawWeight = lossData.estimated_weight_kg !== undefined ? Number(lossData.estimated_weight_kg) : null;
+    const rawWeight = lossData.estimated_weight_kg !== undefined ? Number(lossData.estimated_weight_kg) : 0;
 
     if (isNaN(rawCount) || rawCount <= 0) {
       throw new Error('ژمارەی مریشکی مرداربوو دەبێت لە صفر گەورەتر بێت');
     }
-    if (rawWeight !== null && (isNaN(rawWeight) || rawWeight < 0)) {
-      throw new Error('کێشی مرداربوو ناتوانێت سالب بێت');
+    if (isNaN(rawWeight) || rawWeight < 0) {
+      throw new Error('کێشی زیان ناتوانێت سالب بێت');
     }
 
     // Resolve source batch
@@ -580,31 +650,32 @@ class Database {
     if (lossData.batch_id) {
       resolvedBatch = this.getBatchById(lossData.batch_id);
       if (!resolvedBatch) {
-        throw new Error(`باری دیاریکراو بە ناسنامەی (${lossData.batch_id}) بوونی نییە`);
+        throw new Error(`باری دیاریکراو بە ناسنامەی (${lossData.batch_id}) بوونی نییە لە مەخزەن`);
       }
     } else {
       resolvedBatch = this.getActiveBatch();
     }
 
-    const avgWeight = resolvedBatch && resolvedBatch.avg_weight_per_bird > 0
-      ? resolvedBatch.avg_weight_per_bird
-      : (resolvedBatch && resolvedBatch.average_weight_per_chicken > 0 ? resolvedBatch.average_weight_per_chicken : 1.9);
+    const settings = this.getSettings();
+    const buyPrice = resolvedBatch ? resolvedBatch.buy_price_per_kg : settings.default_buy_price_per_kg;
+    const avgWeight = resolvedBatch 
+      ? (resolvedBatch.average_weight_per_chicken || resolvedBatch.avg_weight_per_bird || (resolvedBatch.total_weight_kg && resolvedBatch.total_chickens ? +(resolvedBatch.total_weight_kg / resolvedBatch.total_chickens).toFixed(2) : 1.9))
+      : 1.9;
 
-    const weight = rawWeight !== null && rawWeight > 0 ? rawWeight : Number((rawCount * avgWeight).toFixed(2));
+    const estimatedWeight = rawWeight > 0 ? rawWeight : +(rawCount * avgWeight).toFixed(2);
 
-    // Strict Inventory Validation for Loss
+    // Enforce remaining stock validation if linked to batch
     if (resolvedBatch) {
       const stock = this.getBatchStock(resolvedBatch.batch_id);
-      if (weight > stock.remaining_weight) {
-        throw new Error(`کێشی زیان (${weight} کگم) زیاترە لە کێشی بەردەست لەم بارەدا (${stock.remaining_weight} کگم)`);
+      if (estimatedWeight > stock.remaining_weight) {
+        throw new Error(`کێشی زیانی داواکراو (${estimatedWeight} کگم) زیاترە لە کێشی بەردەست لەم بارەدا (${stock.remaining_weight} کگم)`);
       }
       if (resolvedBatch.total_chickens && rawCount > stock.remaining_count) {
-        throw new Error(`ژمارەی زیان (${rawCount} دانە) زیاترە لە ژمارەی بەردەست لەم بارەدا (${stock.remaining_count} دانە)`);
+        throw new Error(`ژمارەی زیانی داواکراو (${rawCount} دانە) زیاترە لە ژمارەی بەردەست لەم بارەدا (${stock.remaining_count} دانە)`);
       }
     }
 
-    const buyPrice = resolvedBatch ? resolvedBatch.buy_price_per_kg : this.getSettings().default_buy_price_per_kg;
-    const lossCost = Math.round(weight * buyPrice);
+    const financialCost = Math.round(estimatedWeight * buyPrice);
 
     const losses = this.getLosses();
     const loss = {
@@ -612,10 +683,10 @@ class Database {
       timestamp: lossData.timestamp || new Date().toISOString(),
       batch_id: resolvedBatch ? resolvedBatch.batch_id : null,
       chickens_count: rawCount,
-      estimated_weight_kg: weight,
+      estimated_weight_kg: estimatedWeight,
       reason: (lossData.reason || 'مرداربوونەوە لە قەفەز').trim(),
       buy_price_per_kg: buyPrice,
-      loss_financial_cost: lossCost
+      loss_financial_cost: financialCost
     };
 
     losses.unshift(loss);
@@ -631,12 +702,15 @@ class Database {
     this.notify('losses_updated', losses);
   }
 
-  // ---------------- EXPENSES (خەرجییە کاتییەکان) ----------------
+  // ---------------- EXPENSES (خەرجییە کاتی و مانگانەکان) ----------------
+
   getExpenses() {
     try {
       const data = localStorage.getItem(DB_KEYS.EXPENSES);
-      return data ? JSON.parse(data) : [];
+      const expenses = data ? JSON.parse(data) : [];
+      return Array.isArray(expenses) ? expenses : [];
     } catch (e) {
+      console.error('Error reading expenses:', e);
       return [];
     }
   }
@@ -654,26 +728,27 @@ class Database {
 
     const rawTotal = Number(expenseData.total_cost);
     const rawQty = expenseData.quantity !== undefined ? Number(expenseData.quantity) : 1;
+    const rawUnitPrice = expenseData.unit_price !== undefined ? Number(expenseData.unit_price) : null;
 
     if (isNaN(rawTotal) || rawTotal <= 0) {
       throw new Error('بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
     if (isNaN(rawQty) || rawQty <= 0) {
-      throw new Error('بڕی خەرجی دەبێت لە صفر گەورەتر بێت');
+      throw new Error('بڕی خەرجی دەبێت گەورەتر بێت لە صفر');
     }
 
-    const expenses = this.getExpenses();
-    const qty = rawQty;
     const totalCost = rawTotal;
-    const unitPrice = Math.max(0, Number(expenseData.unit_price) || Math.round(totalCost / qty));
+    const quantity = rawQty;
+    const unitPrice = rawUnitPrice !== null && rawUnitPrice > 0 ? rawUnitPrice : Math.round(totalCost / quantity);
 
+    const expenses = this.getExpenses();
     const expense = {
       expense_id: expenseData.expense_id || this.generateId('exp'),
       timestamp: expenseData.timestamp || new Date().toISOString(),
       category: (expenseData.category || 'خەرجی تر').trim(),
       description: (expenseData.description || expenseData.category || 'خەرجی گشتی').trim(),
-      unit_type: (expenseData.unit_type || 'بڕی پارە').trim(),
-      quantity: qty,
+      unit_type: (expenseData.unit_type || 'دانە').trim(),
+      quantity: quantity,
       unit_price: unitPrice,
       total_cost: totalCost
     };
@@ -691,70 +766,89 @@ class Database {
     this.notify('expenses_updated', expenses);
   }
 
-  // ---------------- DAILY CALCULATIONS & FINANCIAL REPORT ----------------
-  getDailyReport(targetDateStr) {
-    const dateStr = targetDateStr ? getBaghdadDate(targetDateStr) : getBaghdadDate();
+  // ---------------- FINANCIAL REPORTS (Daily & Monthly Net Profit) ----------------
 
-    // 1. Day's Transaction Activity
-    const batchesReceivedToday = this.getBatches().filter(b => (b.date || getBaghdadDate(b.created_at)) === dateStr);
-    const salesToday = this.getSalesByDate(dateStr);
-    const lossesToday = this.getLossesByDate(dateStr);
-    const expensesToday = this.getExpensesByDate(dateStr);
+  getDailyReport(dateStr) {
+    const targetDate = dateStr ? getBaghdadDate(dateStr) : getBaghdadDate();
 
-    const receivedCages = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.cages_count) || (b.cages_detail ? b.cages_detail.length : 1)), 0);
-    const receivedWeight = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.total_weight_kg) || 0), 0);
-    const receivedCount = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.total_chickens) || (Number(b.cages_count) * 25) || 0), 0);
-    const receivedCost = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.total_cost) || (Number(b.total_weight_kg) * Number(b.buy_price_per_kg)) || 0), 0);
+    // 1. Day's activity
+    const batchesReceivedToday = this.getBatches().filter(b => (b.date || getBaghdadDate(b.created_at)) === targetDate);
+    const salesToday = this.getSalesByDate(targetDate);
+    const lossesToday = this.getLossesByDate(targetDate);
+    const expensesToday = this.getExpensesByDate(targetDate);
 
-    const soldCount = salesToday.reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0);
-    const soldWeight = salesToday.reduce((sum, s) => sum + (Number(s.weight_kg) || 0), 0);
-    const meatRevenue = salesToday.reduce((sum, s) => sum + (Number(s.meat_price) || 0), 0);
-    const cleaningRevenue = salesToday.reduce((sum, s) => sum + (Number(s.cleaning_total_fee) || 0), 0);
-    const totalGrossRevenue = salesToday.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
-    const totalCleanedChickens = salesToday.reduce((sum, s) => sum + (s.is_cleaned ? Number(s.chickens_count) : 0), 0);
+    // Stock Activity on this day
+    const receivedWeightToday = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.total_weight_kg) || 0), 0);
+    const receivedCagesToday = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.cages_count) || 0), 0);
+    const receivedChickensToday = batchesReceivedToday.reduce((sum, b) => sum + (Number(b.total_chickens) || (Number(b.cages_count) * 25) || 0), 0);
+
+    const soldWeightToday = salesToday.reduce((sum, s) => sum + (Number(s.weight_kg) || 0), 0);
+    const soldChickensToday = salesToday.reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0);
+
+    const deadWeightToday = lossesToday.reduce((sum, l) => sum + (Number(l.estimated_weight_kg) || 0), 0);
+    const deadChickensToday = lossesToday.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
+
+    // 2. Closing Inventory available at end of targetDate across all active/past batches
+    const closingInventory = this.getClosingInventory(targetDate);
+
+    // Income breakdown
+    let totalMeatRevenue = 0;
+    let totalCleaningRevenue = 0;
+    let storeCleaningRevenue = 0;
+    let serviceOnlyRevenue = 0;
+    let serviceOnlyCount = 0;
+    let totalGrossRevenue = 0;
+    let cleanedChickensCount = 0;
+
+    salesToday.forEach(s => {
+      totalMeatRevenue += Number(s.meat_price) || 0;
+      totalCleaningRevenue += Number(s.cleaning_total_fee) || 0;
+      totalGrossRevenue += Number(s.total_amount) || 0;
+
+      if (s.is_service_only) {
+        serviceOnlyRevenue += Number(s.cleaning_total_fee) || 0;
+        serviceOnlyCount += Number(s.chickens_count) || 0;
+      } else {
+        storeCleaningRevenue += Number(s.cleaning_total_fee) || 0;
+        if (s.is_cleaned) {
+          cleanedChickensCount += Number(s.chickens_count) || 0;
+        }
+      }
+    });
+
+    // Expenses breakdown
     const costOfSoldGoods = salesToday.reduce((sum, s) => sum + (Number(s.cost_of_goods) || 0), 0);
-
-    const deadCount = lossesToday.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
-    const deadWeight = lossesToday.reduce((sum, l) => sum + (Number(l.estimated_weight_kg) || 0), 0);
+    const adhocExpenses = expensesToday.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
     const deadLossCost = lossesToday.reduce((sum, l) => sum + (Number(l.loss_financial_cost) || 0), 0);
 
-    const adhocExpenses = expensesToday.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
-
-    // 2. Closing Inventory at end of dateStr across ALL batches
-    const closingStock = this.getClosingInventory(dateStr);
-
-    // Financial breakdown
     const totalCosts = costOfSoldGoods + adhocExpenses + deadLossCost;
     const netProfit = totalGrossRevenue - totalCosts;
-    const meatProfit = meatRevenue - costOfSoldGoods;
+    const meatProfit = totalMeatRevenue - costOfSoldGoods;
 
     return {
-      date: dateStr,
+      date: targetDate,
       stock: {
-        // Day's receipt activity
-        received_cages: receivedCages,
-        received_count: receivedCount,
-        received_weight: Number(receivedWeight.toFixed(2)),
-        total_batch_cost: receivedCost,
-        // Day's deduction activity
-        sold_count: soldCount,
-        sold_weight: Number(soldWeight.toFixed(2)),
-        dead_count: deadCount,
-        dead_weight: Number(deadWeight.toFixed(2)),
-        // True closing inventory balance at the end of dateStr
-        remaining_weight: closingStock.total_remaining_weight,
-        remaining_count: closingStock.total_remaining_count,
-        is_oversold: closingStock.is_oversold,
-        closing_batches: closingStock.batches
+        // Activity for today
+        received_weight: +receivedWeightToday.toFixed(2),
+        received_cages: receivedCagesToday,
+        received_count: receivedChickensToday,
+        sold_weight: +soldWeightToday.toFixed(2),
+        sold_count: soldChickensToday,
+        dead_weight: +deadWeightToday.toFixed(2),
+        dead_count: deadChickensToday,
+        // Cumulative closing balance at end of this day
+        remaining_weight: closingInventory.total_remaining_weight,
+        remaining_count: closingInventory.total_remaining_count,
+        is_oversold: closingInventory.has_shortfall
       },
       income: {
-        meat_revenue: meatRevenue,
-        cleaning_revenue: cleaningRevenue,
-        service_only_revenue: salesToday.filter(s => s.is_service_only).reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
-        store_cleaning_revenue: salesToday.filter(s => !s.is_service_only).reduce((sum, s) => sum + (Number(s.cleaning_total_fee) || 0), 0),
         total_gross_revenue: totalGrossRevenue,
-        cleaned_chickens_count: totalCleanedChickens,
-        service_only_count: salesToday.filter(s => s.is_service_only).reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0),
+        meat_revenue: totalMeatRevenue,
+        cleaning_revenue: totalCleaningRevenue,
+        store_cleaning_revenue: storeCleaningRevenue,
+        service_only_revenue: serviceOnlyRevenue,
+        service_only_count: serviceOnlyCount,
+        cleaned_chickens_count: cleanedChickensCount,
         transactions_count: salesToday.length
       },
       expenses: {
@@ -766,116 +860,158 @@ class Database {
       profit: {
         net_profit: netProfit,
         meat_profit: meatProfit,
-        is_profitable: netProfit >= 0
+        cleaning_profit: totalCleaningRevenue,
+        is_profitable: netProfit > 0
       },
       raw_data: {
         batches: batchesReceivedToday,
         sales: salesToday,
         losses: lossesToday,
-        expenses: expensesToday
+        expenses: expensesToday,
+        closing_inventory: closingInventory
       }
     };
   }
 
-  // ---------------- MONTHLY FINANCIAL REPORT (ڕاپۆرتی مانگانە) ----------------
-  getMonthlyReport(targetMonthStr) {
-    const monthStr = targetMonthStr ? targetMonthStr.slice(0, 7) : getBaghdadMonth();
+  getMonthlyReport(monthStr) {
+    const targetMonth = monthStr ? monthStr.slice(0, 7) : getBaghdadMonth();
 
-    // 1. Activity during month
-    const batchesReceived = this.getBatches().filter(b => getBaghdadMonth(b.date || b.created_at) === monthStr);
-    const salesMonth = this.getSales().filter(s => getBaghdadMonth(s.timestamp) === monthStr);
-    const lossesMonth = this.getLosses().filter(l => getBaghdadMonth(l.timestamp) === monthStr);
-    const expensesMonth = this.getExpenses().filter(e => getBaghdadMonth(e.timestamp) === monthStr);
+    // 1. Activity in targetMonth
+    const batchesThisMonth = this.getBatches().filter(b => {
+      const bMonth = (b.date || getBaghdadDate(b.created_at)).slice(0, 7);
+      return bMonth === targetMonth;
+    });
 
-    const receivedCages = batchesReceived.reduce((sum, b) => sum + (Number(b.cages_count) || (b.cages_detail ? b.cages_detail.length : 1)), 0);
-    const receivedWeight = batchesReceived.reduce((sum, b) => sum + (Number(b.total_weight_kg) || 0), 0);
-    const receivedCount = batchesReceived.reduce((sum, b) => sum + (Number(b.total_chickens) || (Number(b.cages_count) * 25) || 0), 0);
-    const receivedCost = batchesReceived.reduce((sum, b) => sum + (Number(b.total_cost) || 0), 0);
+    const salesThisMonth = this.getSales().filter(s => getBaghdadMonth(s.timestamp) === targetMonth);
+    const lossesThisMonth = this.getLosses().filter(l => getBaghdadMonth(l.timestamp) === targetMonth);
+    const expensesThisMonth = this.getExpenses().filter(e => getBaghdadMonth(e.timestamp) === targetMonth);
 
-    const soldCount = salesMonth.reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0);
-    const soldWeight = salesMonth.reduce((sum, s) => sum + (Number(s.weight_kg) || 0), 0);
-    const meatRevenue = salesMonth.reduce((sum, s) => sum + (Number(s.meat_price) || 0), 0);
-    const cleaningRevenue = salesMonth.reduce((sum, s) => sum + (Number(s.cleaning_total_fee) || 0), 0);
-    const totalGrossRevenue = salesMonth.reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0);
-    const totalCleanedChickens = salesMonth.reduce((sum, s) => sum + (s.is_cleaned ? Number(s.chickens_count) : 0), 0);
-    const costOfSoldGoods = salesMonth.reduce((sum, s) => sum + (Number(s.cost_of_goods) || 0), 0);
+    // Stock Activity in this month
+    const receivedWeightMonth = batchesThisMonth.reduce((sum, b) => sum + (Number(b.total_weight_kg) || 0), 0);
+    const receivedCagesMonth = batchesThisMonth.reduce((sum, b) => sum + (Number(b.cages_count) || 0), 0);
+    const receivedChickensMonth = batchesThisMonth.reduce((sum, b) => sum + (Number(b.total_chickens) || (Number(b.cages_count) * 25) || 0), 0);
 
-    const deadCount = lossesMonth.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
-    const deadWeight = lossesMonth.reduce((sum, l) => sum + (Number(l.estimated_weight_kg) || 0), 0);
-    const deadLossCost = lossesMonth.reduce((sum, l) => sum + (Number(l.loss_financial_cost) || 0), 0);
+    const soldWeightMonth = salesThisMonth.reduce((sum, s) => sum + (Number(s.weight_kg) || 0), 0);
+    const soldChickensMonth = salesThisMonth.reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0);
 
-    // Monthly categorized expenses (کرێی دوکان, کارەبا, تر)
-    const rentExpenses = expensesMonth.filter(e => e.category === 'کرێی دوکان' || (e.category && e.category.includes('کرێ')));
-    const electricityExpenses = expensesMonth.filter(e => e.category === 'کارەبا' || (e.category && e.category.includes('کارەبا')));
-    const otherExpenses = expensesMonth.filter(e => !rentExpenses.includes(e) && !electricityExpenses.includes(e));
+    const deadWeightMonth = lossesThisMonth.reduce((sum, l) => sum + (Number(l.estimated_weight_kg) || 0), 0);
+    const deadChickensMonth = lossesThisMonth.reduce((sum, l) => sum + (Number(l.chickens_count) || 0), 0);
 
-    const totalRentPaid = rentExpenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
-    const totalElectricityPaid = electricityExpenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
-    const totalOtherExpenses = otherExpenses.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
-    const totalAdhocExpenses = expensesMonth.reduce((sum, e) => sum + (Number(e.total_cost) || 0), 0);
+    // Determine end date of month for closing inventory
+    const [year, month] = targetMonth.split('-').map(Number);
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+    const monthEndDateStr = `${targetMonth}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    const closingInventory = this.getClosingInventory(monthEndDateStr);
 
-    // Calculate closing date of this month (e.g. 2026-08-31)
-    const [yearNum, monthNum] = monthStr.split('-').map(Number);
-    const lastDayNum = new Date(yearNum, monthNum, 0).getDate();
-    const lastDayOfMonth = `${monthStr}-${String(lastDayNum).padStart(2, '0')}`;
-    const closingStock = this.getClosingInventory(lastDayOfMonth);
+    // Income breakdown
+    let totalMeatRevenue = 0;
+    let totalCleaningRevenue = 0;
+    let storeCleaningRevenue = 0;
+    let serviceOnlyRevenue = 0;
+    let serviceOnlyCount = 0;
+    let totalGrossRevenue = 0;
+    let cleanedChickensCount = 0;
 
-    const totalCosts = costOfSoldGoods + totalAdhocExpenses + deadLossCost;
+    salesThisMonth.forEach(s => {
+      totalMeatRevenue += Number(s.meat_price) || 0;
+      totalCleaningRevenue += Number(s.cleaning_total_fee) || 0;
+      totalGrossRevenue += Number(s.total_amount) || 0;
+
+      if (s.is_service_only) {
+        serviceOnlyRevenue += Number(s.cleaning_total_fee) || 0;
+        serviceOnlyCount += Number(s.chickens_count) || 0;
+      } else {
+        storeCleaningRevenue += Number(s.cleaning_total_fee) || 0;
+        if (s.is_cleaned) {
+          cleanedChickensCount += Number(s.chickens_count) || 0;
+        }
+      }
+    });
+
+    // Expenses breakdown
+    const costOfSoldGoods = salesThisMonth.reduce((sum, s) => sum + (Number(s.cost_of_goods) || 0), 0);
+    const deadLossCost = lossesThisMonth.reduce((sum, l) => sum + (Number(l.loss_financial_cost) || 0), 0);
+
+    // Categorized expenses
+    let rentPaid = 0;
+    let electricityPaid = 0;
+    let otherExpenses = 0;
+
+    expensesThisMonth.forEach(e => {
+      const cost = Number(e.total_cost) || 0;
+      if (e.category === 'کرێی دوکان' || e.category === 'کرێی مانگانەی دوکان') {
+        rentPaid += cost;
+      } else if (e.category === 'کارەبا' || e.category === 'پارەی کارەبا (گۆڕاو)') {
+        electricityPaid += cost;
+      } else {
+        otherExpenses += cost;
+      }
+    });
+
+    const totalOperatingExpenses = rentPaid + electricityPaid + otherExpenses;
+    const totalCosts = costOfSoldGoods + totalOperatingExpenses + deadLossCost;
     const netProfit = totalGrossRevenue - totalCosts;
-    const meatProfit = meatRevenue - costOfSoldGoods;
+    const meatProfit = totalMeatRevenue - costOfSoldGoods;
 
     return {
-      month: monthStr,
+      month: targetMonth,
       stock: {
-        received_cages: receivedCages,
-        received_count: receivedCount,
-        received_weight: Number(receivedWeight.toFixed(2)),
-        total_batch_cost: receivedCost,
-        sold_count: soldCount,
-        sold_weight: Number(soldWeight.toFixed(2)),
-        dead_count: deadCount,
-        dead_weight: Number(deadWeight.toFixed(2)),
-        remaining_weight: closingStock.total_remaining_weight,
-        remaining_count: closingStock.total_remaining_count,
-        is_oversold: closingStock.is_oversold
+        received_weight: +receivedWeightMonth.toFixed(2),
+        received_cages: receivedCagesMonth,
+        received_count: receivedChickensMonth,
+        sold_weight: +soldWeightMonth.toFixed(2),
+        sold_count: soldChickensMonth,
+        dead_weight: +deadWeightMonth.toFixed(2),
+        dead_count: deadChickensMonth,
+        remaining_weight: closingInventory.total_remaining_weight,
+        remaining_count: closingInventory.total_remaining_count,
+        is_oversold: closingInventory.has_shortfall
       },
       income: {
-        meat_revenue: meatRevenue,
-        cleaning_revenue: cleaningRevenue,
-        service_only_revenue: salesMonth.filter(s => s.is_service_only).reduce((sum, s) => sum + (Number(s.total_amount) || 0), 0),
-        store_cleaning_revenue: salesMonth.filter(s => !s.is_service_only).reduce((sum, s) => sum + (Number(s.cleaning_total_fee) || 0), 0),
         total_gross_revenue: totalGrossRevenue,
-        cleaned_chickens_count: totalCleanedChickens,
-        service_only_count: salesMonth.filter(s => s.is_service_only).reduce((sum, s) => sum + (Number(s.chickens_count) || 0), 0),
-        transactions_count: salesMonth.length
+        meat_revenue: totalMeatRevenue,
+        cleaning_revenue: totalCleaningRevenue,
+        store_cleaning_revenue: storeCleaningRevenue,
+        service_only_revenue: serviceOnlyRevenue,
+        service_only_count: serviceOnlyCount,
+        cleaned_chickens_count: cleanedChickensCount,
+        transactions_count: salesThisMonth.length
       },
       expenses: {
         cost_of_sold_goods: costOfSoldGoods,
-        rent_paid: totalRentPaid,
-        electricity_paid: totalElectricityPaid,
-        other_expenses: totalOtherExpenses,
-        total_expenses: totalAdhocExpenses,
+        rent_paid: rentPaid,
+        electricity_paid: electricityPaid,
+        other_expenses: otherExpenses,
+        total_operating_expenses: totalOperatingExpenses,
         dead_loss_cost: deadLossCost,
         total_costs: totalCosts
       },
       profit: {
         net_profit: netProfit,
         meat_profit: meatProfit,
-        is_profitable: netProfit >= 0
+        cleaning_profit: totalCleaningRevenue,
+        is_profitable: netProfit > 0
       },
       raw_data: {
-        batches: batchesReceived,
-        sales: salesMonth,
-        losses: lossesMonth,
-        expenses: expensesMonth
+        batches: batchesThisMonth,
+        sales: salesThisMonth,
+        losses: lossesThisMonth,
+        expenses: expensesThisMonth,
+        closing_inventory: closingInventory
       }
     };
   }
 
-  // ---------------- BACKUP & SEED DATA ----------------
+  // ---------------- BACKUP & RESTORE (Transactional JSON) ----------------
+
   exportAllData() {
+    let seqMap = {};
+    try {
+      seqMap = JSON.parse(localStorage.getItem(DB_KEYS.RECEIPT_SEQUENCES) || '{}') || {};
+    } catch (e) {}
+
     return {
-      version: '2.0',
+      version: '2.0.0',
       exported_at: new Date().toISOString(),
       timezone: 'Asia/Baghdad',
       store: this.getSettings().store_name,
@@ -884,7 +1020,8 @@ class Database {
         batches: this.getBatches(),
         sales: this.getSales(),
         losses: this.getLosses(),
-        expenses: this.getExpenses()
+        expenses: this.getExpenses(),
+        receipt_sequences: seqMap
       }
     };
   }
@@ -892,20 +1029,127 @@ class Database {
   importAllData(jsonData) {
     try {
       const parsed = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
-      const data = parsed.data || parsed;
+      if (!parsed || typeof parsed !== 'object') {
+        return { success: false, error: 'فایلی پاشەکەوت دەبێت فۆرماتی درووستی JSON بێت' };
+      }
 
+      const data = parsed.data || parsed;
+      if (!data || typeof data !== 'object') {
+        return { success: false, error: 'پێکهاتەی فایلی پاشەکەوت نادرووستە' };
+      }
+
+      // 1. Transactional Pre-Validation: Validate everything before writing to storage
+
+      // Validate Settings if present
+      if (data.settings !== undefined) {
+        if (!data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings)) {
+          return { success: false, error: 'ڕێکخستنەکان لە فایلی هاوردەکراو دەبێت ئۆبجێکت بێت' };
+        }
+        const s = data.settings;
+        if (s.cleaning_fee_per_chicken !== undefined && (isNaN(Number(s.cleaning_fee_per_chicken)) || Number(s.cleaning_fee_per_chicken) < 0)) {
+          return { success: false, error: 'نرخی پاککردن ناتوانێت سالب بێت' };
+        }
+        if (s.monthly_rent !== undefined && (isNaN(Number(s.monthly_rent)) || Number(s.monthly_rent) < 0)) {
+          return { success: false, error: 'کرێی مانگانە ناتوانێت سالب بێت' };
+        }
+      }
+
+      // Validate Batches if present
+      if (data.batches !== undefined) {
+        if (!Array.isArray(data.batches)) {
+          return { success: false, error: 'لیستی بارەکان دەبێت Array بێت' };
+        }
+        for (const b of data.batches) {
+          if (!b || typeof b !== 'object') {
+            return { success: false, error: 'تۆماری بار لە فایلی داتادا نادرووستە' };
+          }
+          if (b.total_weight_kg !== undefined && (isNaN(Number(b.total_weight_kg)) || Number(b.total_weight_kg) <= 0)) {
+            return { success: false, error: 'کێشی بار دەبێت ژمارەیەکی درووست و گەورەتر بێت لە صفر' };
+          }
+          if (b.buy_price_per_kg !== undefined && (isNaN(Number(b.buy_price_per_kg)) || Number(b.buy_price_per_kg) < 0)) {
+            return { success: false, error: 'نرخی کڕینی بار ناتوانێت سالب بێت' };
+          }
+        }
+      }
+
+      // Validate Sales if present
+      if (data.sales !== undefined) {
+        if (!Array.isArray(data.sales)) {
+          return { success: false, error: 'لیستی فرۆشتنەکان دەبێت Array بێت' };
+        }
+        for (const s of data.sales) {
+          if (!s || typeof s !== 'object') {
+            return { success: false, error: 'تۆماری فرۆشتن نادرووستە' };
+          }
+          if (s.chickens_count !== undefined && (isNaN(Number(s.chickens_count)) || Number(s.chickens_count) <= 0)) {
+            return { success: false, error: 'ژمارەی دانەی فرۆشراو دەبێت گەورەتر بێت لە صفر' };
+          }
+          if (s.weight_kg !== undefined && (isNaN(Number(s.weight_kg)) || Number(s.weight_kg) < 0)) {
+            return { success: false, error: 'کێشی فرۆشراو ناتوانێت سالب بێت' };
+          }
+          if (s.total_amount !== undefined && (isNaN(Number(s.total_amount)) || Number(s.total_amount) < 0)) {
+            return { success: false, error: 'کۆی پارەی فرۆشراو ناتوانێت سالب بێت' };
+          }
+        }
+      }
+
+      // Validate Losses if present
+      if (data.losses !== undefined) {
+        if (!Array.isArray(data.losses)) {
+          return { success: false, error: 'لیستی زیانەکان دەبێت Array بێت' };
+        }
+        for (const l of data.losses) {
+          if (!l || typeof l !== 'object') {
+            return { success: false, error: 'تۆماری زیان نادرووستە' };
+          }
+          if (l.chickens_count !== undefined && (isNaN(Number(l.chickens_count)) || Number(l.chickens_count) <= 0)) {
+            return { success: false, error: 'ژمارەی زیان دەبێت گەورەتر بێت لە صفر' };
+          }
+          if (l.estimated_weight_kg !== undefined && (isNaN(Number(l.estimated_weight_kg)) || Number(l.estimated_weight_kg) < 0)) {
+            return { success: false, error: 'کێشی زیان ناتوانێت سالب بێت' };
+          }
+        }
+      }
+
+      // Validate Expenses if present
+      if (data.expenses !== undefined) {
+        if (!Array.isArray(data.expenses)) {
+          return { success: false, error: 'لیستی خەرجییەکان دەبێت Array بێت' };
+        }
+        for (const e of data.expenses) {
+          if (!e || typeof e !== 'object') {
+            return { success: false, error: 'تۆماری خەرجی نادرووستە' };
+          }
+          if (e.total_cost !== undefined && (isNaN(Number(e.total_cost)) || Number(e.total_cost) <= 0)) {
+            return { success: false, error: 'بڕی پارەی خەرجی دەبێت گەورەتر بێت لە صفر' };
+          }
+        }
+      }
+
+      // 2. Transactional Write: Only reached if ALL validations pass successfully
       if (data.settings) localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(data.settings));
       if (data.batches) localStorage.setItem(DB_KEYS.BATCHES, JSON.stringify(data.batches));
       if (data.sales) localStorage.setItem(DB_KEYS.SALES, JSON.stringify(data.sales));
       if (data.losses) localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify(data.losses));
       if (data.expenses) localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify(data.expenses));
+      if (data.receipt_sequences) localStorage.setItem(DB_KEYS.RECEIPT_SEQUENCES, JSON.stringify(data.receipt_sequences));
 
       this.notify('all_data_restored', true);
       return { success: true };
     } catch (e) {
       console.error('Import error:', e);
-      return { success: false, error: e.message };
+      return { success: false, error: e.message || 'هەڵە لە فایلی داتادا' };
     }
+  }
+
+  clearAllData() {
+    localStorage.removeItem(DB_KEYS.BATCHES);
+    localStorage.removeItem(DB_KEYS.SALES);
+    localStorage.removeItem(DB_KEYS.LOSSES);
+    localStorage.removeItem(DB_KEYS.EXPENSES);
+    localStorage.removeItem(DB_KEYS.ACTIVE_BATCH_ID);
+    localStorage.removeItem(DB_KEYS.RECEIPT_SEQUENCES);
+    this.notify('all_data_restored', true);
   }
 
   seedDemoData() {
@@ -919,6 +1163,7 @@ class Database {
       cages_count: 8,
       total_chickens: 80,
       total_weight_kg: 168.5,
+      average_weight_per_chicken: 2.11,
       avg_weight_per_bird: 2.11,
       buy_price_per_kg: 2300,
       sell_price_per_kg: 2850,
@@ -1078,26 +1323,15 @@ class Database {
     localStorage.setItem(DB_KEYS.SALES, JSON.stringify(sampleSales));
     localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify(sampleLosses));
     localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify(sampleExpenses));
+
     this.setActiveBatch(sampleBatch.batch_id);
-
-    this.notify('all_data_restored', true);
-  }
-
-  clearAllData() {
-    localStorage.setItem(DB_KEYS.BATCHES, JSON.stringify([]));
-    localStorage.setItem(DB_KEYS.SALES, JSON.stringify([]));
-    localStorage.setItem(DB_KEYS.LOSSES, JSON.stringify([]));
-    localStorage.setItem(DB_KEYS.EXPENSES, JSON.stringify([]));
-    localStorage.removeItem(DB_KEYS.ACTIVE_BATCH_ID);
     this.notify('all_data_restored', true);
   }
 }
 
-// Export singleton & helpers to global scope
-const rootContext = typeof window !== 'undefined' ? window : global;
-rootContext.Database = Database;
-rootContext.getBaghdadDate = getBaghdadDate;
-rootContext.getBaghdadMonth = getBaghdadMonth;
-rootContext.getBaghdadTime = getBaghdadTime;
-rootContext.escapeHtml = escapeHtml;
-rootContext.db = new Database();
+// Global singleton instance
+if (typeof window !== 'undefined') {
+  window.db = new Database();
+} else if (typeof global !== 'undefined') {
+  global.db = new Database();
+}

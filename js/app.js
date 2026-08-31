@@ -256,7 +256,13 @@ class AppController {
     if (type === 'danger') icon = '🛑';
     if (type === 'warning') icon = '⚠️';
 
-    toast.innerHTML = `<span>${icon}</span><span>${escapeHtml(message)}</span>`;
+    const iconSpan = document.createElement('span');
+    iconSpan.textContent = icon;
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = message;
+
+    toast.appendChild(iconSpan);
+    toast.appendChild(msgSpan);
     container.appendChild(toast);
 
     setTimeout(() => {

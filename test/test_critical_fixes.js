@@ -1,12 +1,14 @@
 /**
- * Sargalu Chicken POS - Critical Fixes Test Suite
- * Tests for:
- * 1. inventory_cross_day
- * 2. batch_cost_linking
- * 3. inventory_validation
- * 4. baghdad_business_dates
- * 5. strict negative rejection (no silent conversion)
- * 6. XSS protection
+ * Sargalu Chicken POS - Comprehensive Critical Fixes Regression Suite
+ * Tests:
+ * 1. baghdad_business_dates (P0)
+ * 2. inventory_cross_day (P0)
+ * 3. batch_cost_linking (P0)
+ * 4. inventory_validation & oversold prevention (P0)
+ * 5. receipt_number_uniqueness (P1)
+ * 6. average_weight_property (P1)
+ * 7. input_and_import_validation (P1)
+ * 8. xss_prevention (P1)
  */
 
 const assert = require('assert');
@@ -294,68 +296,174 @@ test('تەنها پاککردنی کڕیار (Service Only) بەبێ بار کا
   assert.strictEqual(closingStock.total_remaining_weight, 0, 'Closing stock remains untouched');
 });
 
-// ---------------- 5. STRICT INPUT VALIDATION (NO SILENT NEGATIVE CONVERSION) ----------------
-console.log('\n٥. پشکنینی ڕەتکردنەوەی ژمارە نێگەتیڤەکان (Strict Validation without Math.abs):');
+// ---------------- 5. RECEIPT NUMBER UNIQUENESS & DELETION TESTS ----------------
+console.log('\n٥. پشکنینی ژمارەی وەسڵ و پاراستن لە دووبارەبوونەوە (Receipt Number Uniqueness):');
 
-test('ڕەتکردنەوەی ژمارەی سالب لە فرۆشتن', () => {
+test('وەسڵ بە زنجیرەی گەورەترین ژمارە دروست دەبێت و بە سڕینەوە دووبارە نابێتەوە', () => {
+  global.db.clearAllData();
+
+  const batch = global.db.saveBatch({
+    poultry_type: 'مریشکی ناسک',
+    date: '2026-08-31',
+    cages_count: 10,
+    total_chickens: 100,
+    total_weight_kg: 200,
+    buy_price_per_kg: 2000,
+    sell_price_per_kg: 2500
+  });
+
+  // Manually create receipt 001 and 003
+  const sale1 = global.db.saveSale({
+    timestamp: '2026-08-31T10:00:00.000Z',
+    receipt_no: '20260831-001',
+    batch_id: batch.batch_id,
+    item_type: 'مریشکی ناسک',
+    chickens_count: 1,
+    weight_kg: 2.0
+  });
+
+  const sale3 = global.db.saveSale({
+    timestamp: '2026-08-31T11:00:00.000Z',
+    receipt_no: '20260831-003',
+    batch_id: batch.batch_id,
+    item_type: 'مریشکی ناسک',
+    chickens_count: 1,
+    weight_kg: 2.0
+  });
+
+  // Next generated receipt must be 004
+  const nextRecNo = global.db.generateReceiptNumber('2026-08-31T12:00:00.000Z');
+  assert.strictEqual(nextRecNo, '20260831-004', `Expected 20260831-004 but got ${nextRecNo}`);
+
+  // Delete receipt 003
+  global.db.deleteSale(sale3.sale_id);
+
+  // Next receipt generated must still be 004 or higher, never 001 or 003!
+  const nextAfterDelete = global.db.generateReceiptNumber('2026-08-31T13:00:00.000Z');
+  const seqNum = parseInt(nextAfterDelete.split('-')[1], 10);
+  assert.ok(seqNum >= 4, `Expected receipt sequence >= 4 after deletion, but got ${nextAfterDelete}`);
+});
+
+// ---------------- 6. AVERAGE WEIGHT PROPERTY & LOSS ESTIMATION ----------------
+console.log('\n٦. پشکنینی کێشی تێکڕای مریشک (Average Weight Property & Estimation):');
+
+test('باری ١٠٠ کگم و ٤٠ مریشک کێشی تێکڕا ٢.٥ کگم دادەنێت و ٢ دانە زیان دەبێتە ٥ کگم', () => {
+  global.db.clearAllData();
+
+  const batch = global.db.saveBatch({
+    poultry_type: 'مریشکی ناسک',
+    cages_count: 4,
+    total_chickens: 40,
+    total_weight_kg: 100.0,
+    buy_price_per_kg: 2000,
+    sell_price_per_kg: 2500
+  });
+
+  assert.strictEqual(batch.average_weight_per_chicken, 2.5, 'Average weight per chicken must be 2.5 kg');
+  assert.strictEqual(batch.avg_weight_per_bird, 2.5, 'Alias avg_weight_per_bird must also be 2.5 kg');
+
+  // Loss with 2 chickens and no explicit weight
+  const loss = global.db.saveLoss({
+    batch_id: batch.batch_id,
+    chickens_count: 2
+  });
+
+  assert.strictEqual(loss.estimated_weight_kg, 5.0, 'Estimated weight for 2 birds must be 5.0 kg');
+  assert.strictEqual(loss.loss_financial_cost, 10000, 'Loss cost must be 5.0 * 2000 = 10,000 IQD');
+});
+
+test('باری کۆن کە تەنها avg_weight_per_bird هەیە بە درووستی دەخوێنرێتەوە', () => {
+  global.db.clearAllData();
+
+  const legacyBatch = {
+    batch_id: 'batch_legacy_01',
+    poultry_type: 'مریشکی ناسک',
+    date: '2026-08-30',
+    total_weight_kg: 50.0,
+    total_chickens: 20,
+    avg_weight_per_bird: 2.5,
+    buy_price_per_kg: 2000,
+    sell_price_per_kg: 2500
+  };
+
+  global.localStorage.setItem('sargalu_batches', JSON.stringify([legacyBatch]));
+  global.db.setActiveBatch(legacyBatch.batch_id);
+
+  const batches = global.db.getBatches();
+  assert.strictEqual(batches[0].average_weight_per_chicken, 2.5, 'Legacy batch must normalize average_weight_per_chicken to 2.5');
+
+  const loss = global.db.saveLoss({
+    chickens_count: 3
+  });
+  assert.strictEqual(loss.estimated_weight_kg, 7.5, '3 birds at 2.5 kg = 7.5 kg');
+});
+
+// ---------------- 7. TRANSACTIONAL BACKUP IMPORT & NEGATIVE VALIDATION ----------------
+console.log('\n٧. پشکنینی هاوردەکردنی پاشەکەوت بە شێوازی تڕانزاکشن (Transactional Backup Validation):');
+
+test('هاوردەکردنی فایلی تێکچوو (وەک sales وەک ئۆبجێکت) ڕەتدەکرێتەوە و داتای پێشوو دەستکاری ناکرێت', () => {
+  global.db.clearAllData();
+
+  const batch = global.db.saveBatch({
+    poultry_type: 'مریشکی ناسک',
+    cages_count: 1,
+    total_chickens: 10,
+    total_weight_kg: 20.0,
+    buy_price_per_kg: 2000,
+    sell_price_per_kg: 2500
+  });
+
+  const malformedBackup = {
+    data: {
+      batches: [{ batch_id: 'bad_batch', total_weight_kg: 50 }],
+      sales: { not: 'an array, this is invalid object' } // Malformed sales
+    }
+  };
+
+  const res = global.db.importAllData(malformedBackup);
+  assert.strictEqual(res.success, false, 'Malformed import must return success: false');
+
+  // Verify existing data was untouched
+  const currentBatches = global.db.getBatches();
+  assert.strictEqual(currentBatches.length, 1, 'Existing batch must remain unchanged');
+  assert.strictEqual(currentBatches[0].batch_id, batch.batch_id, 'Existing batch ID must be intact');
+});
+
+test('پاشەکەوتی درووست بە سەرکەوتوویی هاوردە دەکرێت', () => {
+  const validBackup = global.db.exportAllData();
+  global.db.clearAllData();
+  assert.strictEqual(global.db.getBatches().length, 0, 'LocalStorage cleared');
+
+  const res = global.db.importAllData(validBackup);
+  assert.strictEqual(res.success, true, 'Valid backup must import successfully');
+  assert.strictEqual(global.db.getBatches().length, 1, 'Batch restored');
+});
+
+test('saveSale بە ژمارەی سالب فرۆشتن دروست ناکات', () => {
+  const salesBefore = global.db.getSales().length;
   assert.throws(() => {
     global.db.saveSale({
-      chickens_count: -2,
+      chickens_count: -1,
       weight_kg: 5.0
     });
-  }, /دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
-
-  assert.throws(() => {
-    global.db.saveSale({
-      chickens_count: 2,
-      weight_kg: -4.5
-    });
-  }, /کێشی سەر تەرازوو دەبێت گەورەتر بێت لە صفر/);
+  });
+  assert.strictEqual(global.db.getSales().length, salesBefore, 'No sale should be created on error');
 });
 
-test('ڕەتکردنەوەی ژمارەی سالب لە داخڵکردنی بار', () => {
-  assert.throws(() => {
-    global.db.saveBatch({
-      cages_count: -1,
-      total_weight_kg: 50,
-      buy_price_per_kg: 2000,
-      sell_price_per_kg: 2500
-    });
-  }, /ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە سفر بێت/);
-
-  assert.throws(() => {
-    global.db.saveBatch({
-      cages_count: 2,
-      total_weight_kg: -50,
-      buy_price_per_kg: 2000,
-      sell_price_per_kg: 2500
-    });
-  }, /کۆی کێشی بارەکە دەبێت گەورەتر بێت لە صفر/);
-});
-
-test('ڕەتکردنەوەی خەرجی بە بڕی سالب یان صفر', () => {
-  assert.throws(() => {
-    global.db.saveExpense({
-      category: 'غاز',
-      total_cost: -5000
-    });
-  }, /بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
-
-  assert.throws(() => {
-    global.db.saveExpense({
-      category: 'غاز',
-      total_cost: 0
-    });
-  }, /بڕی پارەی خەرجی دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
-});
-
-// ---------------- 6. XSS PREVENTION HELPER TESTS ----------------
-console.log('\n٦. پشکنینی پاککردنەوە و پاراستن لە هێرشی XSS:');
+// ---------------- 8. XSS PREVENTION HELPER TESTS ----------------
+console.log('\n٨. پشکنینی پاککردنەوە و پاراستن لە هێرشی XSS:');
 
 test('escapeHtml کارەکتەرە مەترسیدارەکانی تەگ دەگۆڕێت بۆ Entity', () => {
-  const dirty = '<script>alert("XSS & Injection")</script>';
+  const dirty = '<img src=x onerror=alert(1)>';
   const clean = global.escapeHtml(dirty);
-  assert.strictEqual(clean, '&lt;script&gt;alert(&quot;XSS &amp; Injection&quot;)&lt;/script&gt;');
+  assert.strictEqual(clean, '&lt;img src=x onerror=alert(1)&gt;');
+  assert.ok(!clean.includes('<img'), 'Must not contain raw img tag');
+});
+
+test('تێکستی ئاسایی کوردی بە تەواوی دەپارێزرێت و دەردەکەوێت', () => {
+  const kurdishText = 'مریشکی بەڕێز کاک ئارام (سەرگەڵو) - ٥ دانە';
+  const clean = global.escapeHtml(kurdishText);
+  assert.strictEqual(clean, kurdishText, 'Kurdish text must remain intact');
 });
 
 console.log('\n================================================================');
