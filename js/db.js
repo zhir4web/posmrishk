@@ -358,11 +358,11 @@ class Database {
     if (!Number.isFinite(rawWeight) || rawWeight <= 0) {
       throw new Error('کۆی کێشی بارەکە دەبێت گەورەتر بێت لە صفر');
     }
-    if (!Number.isFinite(rawBuyPrice) || rawBuyPrice < 0) {
-      throw new Error('نرخی کڕین ناتوانێت سالب بێت');
+    if (!Number.isFinite(rawBuyPrice) || rawBuyPrice <= 0) {
+      throw new Error('نرخی کڕین دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
-    if (!Number.isFinite(rawSellPrice) || rawSellPrice < 0) {
-      throw new Error('نرخی فرۆشتن ناتوانێت سالب بێت');
+    if (!Number.isFinite(rawSellPrice) || rawSellPrice <= 0) {
+      throw new Error('نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
     }
 
     const poultryType = batch.poultry_type || 'مریشکی ناسک';
@@ -583,7 +583,10 @@ class Database {
     if (!isServiceOnly && (!Number.isFinite(rawWeight) || rawWeight <= 0)) {
       throw new Error('کێشی سەر تەرازوو دەبێت گەورەتر بێت لە صفر');
     }
-    if (rawSellPrice !== null && (!Number.isFinite(rawSellPrice) || rawSellPrice < 0)) {
+    if (!isServiceOnly && rawSellPrice !== null && (!Number.isFinite(rawSellPrice) || rawSellPrice <= 0)) {
+      throw new Error('نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
+    }
+    if (isServiceOnly && rawSellPrice !== null && (!Number.isFinite(rawSellPrice) || rawSellPrice < 0)) {
       throw new Error('نرخی فرۆشتن ناتوانێت سالب بێت');
     }
     if (rawCleanFee !== null && (!Number.isFinite(rawCleanFee) || rawCleanFee < 0)) {
@@ -623,7 +626,11 @@ class Database {
     const weightKg = isServiceOnly ? 0 : rawWeight;
     const sellPrice = isServiceOnly 
       ? 0 
-      : (rawSellPrice !== null && rawSellPrice > 0 ? rawSellPrice : (resolvedBatch ? resolvedBatch.sell_price_per_kg : settings.default_sell_price_per_kg));
+      : (rawSellPrice !== null ? rawSellPrice : (resolvedBatch ? resolvedBatch.sell_price_per_kg : settings.default_sell_price_per_kg));
+
+    if (!isServiceOnly && (!Number.isFinite(sellPrice) || sellPrice <= 0)) {
+      throw new Error('نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت');
+    }
     const isCleaned = isServiceOnly ? true : Boolean(saleData.is_cleaned);
 
     // Cleaning fee determination
@@ -1227,11 +1234,11 @@ class Database {
           if (b.cages_count !== undefined && (!Number.isFinite(Number(b.cages_count)) || Number(b.cages_count) <= 0)) {
             return { success: false, error: `ژمارەی قەفەزی باری ژمارە ${i + 1} دەبێت گەورەتر لە صفر بێت` };
           }
-          if (b.buy_price_per_kg !== undefined && (!Number.isFinite(Number(b.buy_price_per_kg)) || Number(b.buy_price_per_kg) < 0)) {
-            return { success: false, error: `نرخی کڕینی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
+          if (b.buy_price_per_kg !== undefined && (!Number.isFinite(Number(b.buy_price_per_kg)) || Number(b.buy_price_per_kg) <= 0)) {
+            return { success: false, error: `نرخی کڕینی باری ژمارە ${i + 1} دەبێت گەورەتر لە صفر بێت` };
           }
-          if (b.sell_price_per_kg !== undefined && (!Number.isFinite(Number(b.sell_price_per_kg)) || Number(b.sell_price_per_kg) < 0)) {
-            return { success: false, error: `نرخی فرۆشتنی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
+          if (b.sell_price_per_kg !== undefined && (!Number.isFinite(Number(b.sell_price_per_kg)) || Number(b.sell_price_per_kg) <= 0)) {
+            return { success: false, error: `نرخی فرۆشتنی باری ژمارە ${i + 1} دەبێت گەورەتر لە صفر بێت` };
           }
           if (b.total_cost !== undefined && (!Number.isFinite(Number(b.total_cost)) || Number(b.total_cost) < 0)) {
             return { success: false, error: `تێچووی گشتی باری ژمارە ${i + 1} ناتوانێت سالب بێت` };
@@ -1268,7 +1275,10 @@ class Database {
           if (s.total_amount !== undefined && (!Number.isFinite(Number(s.total_amount)) || Number(s.total_amount) < 0)) {
             return { success: false, error: `کۆی پارەی فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
           }
-          if (s.sell_price_per_kg !== undefined && (!Number.isFinite(Number(s.sell_price_per_kg)) || Number(s.sell_price_per_kg) < 0)) {
+          if (!s.is_service_only && s.sell_price_per_kg !== undefined && (!Number.isFinite(Number(s.sell_price_per_kg)) || Number(s.sell_price_per_kg) <= 0)) {
+            return { success: false, error: `نرخی فرۆشتنی کیلۆ لە فرۆشتنی ${i + 1} دەبێت گەورەتر لە صفر بێت` };
+          }
+          if (s.is_service_only && s.sell_price_per_kg !== undefined && (!Number.isFinite(Number(s.sell_price_per_kg)) || Number(s.sell_price_per_kg) < 0)) {
             return { success: false, error: `نرخی فرۆشتنی کیلۆ لە فرۆشتنی ${i + 1} ناتوانێت سالب بێت` };
           }
           if (s.buy_price_per_kg !== undefined && (!Number.isFinite(Number(s.buy_price_per_kg)) || Number(s.buy_price_per_kg) < 0)) {

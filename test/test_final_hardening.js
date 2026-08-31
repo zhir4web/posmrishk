@@ -133,7 +133,7 @@ test('باری بەکارنەهاتوو (بەبێ فرۆشتن و زیان) بە
 // ---------------- 2. REMOVE ALL SILENT NEGATIVE-TO-POSITIVE CONVERSIONS ----------------
 console.log('\n٢. پشکنینی نەهێشتنی گۆڕینی بێدەنگی ژمارەی سالب (Strict Negative Rejection):');
 
-test('saveBatch گشت ژمارە نێگەتیڤەکان ڕەتدەکاتەوە', () => {
+test('saveBatch گشت ژمارە نێگەتیڤ و صفرەکان بۆ نرخ ڕەتدەکاتەوە', () => {
   assert.throws(() => {
     global.db.saveBatch({ cages_count: -1, total_weight_kg: 50, buy_price_per_kg: 2000, sell_price_per_kg: 2500 });
   }, /ژمارەی قەفەزەکان دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
@@ -144,14 +144,22 @@ test('saveBatch گشت ژمارە نێگەتیڤەکان ڕەتدەکاتەوە'
 
   assert.throws(() => {
     global.db.saveBatch({ cages_count: 2, total_weight_kg: 50, buy_price_per_kg: -2000, sell_price_per_kg: 2500 });
-  }, /نرخی کڕین ناتوانێت سالب بێت/);
+  }, /نرخی کڕین دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
+
+  assert.throws(() => {
+    global.db.saveBatch({ cages_count: 2, total_weight_kg: 50, buy_price_per_kg: 0, sell_price_per_kg: 2500 });
+  }, /نرخی کڕین دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/, 'saveBatch must reject buy_price_per_kg: 0');
 
   assert.throws(() => {
     global.db.saveBatch({ cages_count: 2, total_weight_kg: 50, buy_price_per_kg: 2000, sell_price_per_kg: -2500 });
-  }, /نرخی فرۆشتن ناتوانێت سالب بێت/);
+  }, /نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
+
+  assert.throws(() => {
+    global.db.saveBatch({ cages_count: 2, total_weight_kg: 50, buy_price_per_kg: 2000, sell_price_per_kg: 0 });
+  }, /نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/, 'saveBatch must reject sell_price_per_kg: 0');
 });
 
-test('saveSale گشت ژمارە نێگەتیڤەکان ڕەتدەکاتەوە', () => {
+test('saveSale گشت ژمارە نێگەتیڤ و صفرەکان بۆ فرۆشتنی ئاسایی ڕەتدەکاتەوە بەڵام تەنها پاککردن قبوڵ دەکات', () => {
   const batch = global.db.saveBatch({ cages_count: 2, total_weight_kg: 50, buy_price_per_kg: 2000, sell_price_per_kg: 2500 });
 
   assert.throws(() => {
@@ -164,11 +172,27 @@ test('saveSale گشت ژمارە نێگەتیڤەکان ڕەتدەکاتەوە',
 
   assert.throws(() => {
     global.db.saveSale({ batch_id: batch.batch_id, chickens_count: 2, weight_kg: 4.0, sell_price_per_kg: -2500 });
-  }, /نرخی فرۆشتن ناتوانێت سالب بێت/);
+  }, /نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/);
+
+  assert.throws(() => {
+    global.db.saveSale({ batch_id: batch.batch_id, chickens_count: 2, weight_kg: 4.0, sell_price_per_kg: 0 });
+  }, /نرخی فرۆشتن دەبێت ژمارەیەکی درووست و گەورەتر لە صفر بێت/, 'saveSale must reject sell_price_per_kg: 0 for normal sales');
 
   assert.throws(() => {
     global.db.saveSale({ batch_id: batch.batch_id, chickens_count: 2, weight_kg: 4.0, cleaning_fee_per_chicken: -1500 });
   }, /کرێی پاککردن ناتوانێت سالب بێت/);
+
+  // Cleaning-only service sale with sell_price_per_kg: 0 must succeed
+  const serviceSale = global.db.saveSale({
+    item_type: 'تەنها پاککردن',
+    is_service_only: true,
+    chickens_count: 3,
+    sell_price_per_kg: 0,
+    cleaning_fee_per_chicken: 1500
+  });
+  assert.strictEqual(serviceSale.is_service_only, true);
+  assert.strictEqual(serviceSale.sell_price_per_kg, 0);
+  assert.strictEqual(serviceSale.total_amount, 4500);
 });
 
 test('saveLoss گشت ژمارە نێگەتیڤەکان ڕەتدەکاتەوە', () => {
@@ -337,6 +361,57 @@ test('هاوردەکردنی باکئەپ بە ژمارەی Infinity یان NaN 
 
   const res = global.db.importAllData(badNumBackup);
   assert.strictEqual(res.success, false);
+});
+
+test('هاوردەکردنی باکئەپ بە نرخی صفر بۆ بار یان فرۆشتنی ئاسایی بە ئەتۆمیک ڕەتدەکرێتەوە', () => {
+  const countBefore = global.db.getBatches().length;
+
+  const zeroBatchBackup = {
+    data: {
+      batches: [{
+        batch_id: 'batch_01',
+        total_weight_kg: 50,
+        cages_count: 2,
+        buy_price_per_kg: 0,
+        sell_price_per_kg: 2500
+      }]
+    }
+  };
+  const res1 = global.db.importAllData(zeroBatchBackup);
+  assert.strictEqual(res1.success, false, 'Import with buy_price_per_kg: 0 must fail');
+  assert.strictEqual(global.db.getBatches().length, countBefore);
+
+  const zeroSaleBackup = {
+    data: {
+      sales: [{
+        sale_id: 'sale_01',
+        chickens_count: 1,
+        weight_kg: 2.0,
+        sell_price_per_kg: 0,
+        is_service_only: false
+      }]
+    }
+  };
+  const res2 = global.db.importAllData(zeroSaleBackup);
+  assert.strictEqual(res2.success, false, 'Import normal sale with sell_price_per_kg: 0 must fail');
+
+  // Service only with sell_price_per_kg: 0 must succeed
+  const serviceSaleBackup = {
+    data: {
+      sales: [{
+        sale_id: 'sale_service_01',
+        chickens_count: 2,
+        weight_kg: 0,
+        sell_price_per_kg: 0,
+        cleaning_fee_per_chicken: 1500,
+        cleaning_total_fee: 3000,
+        total_amount: 3000,
+        is_service_only: true
+      }]
+    }
+  };
+  const res3 = global.db.importAllData(serviceSaleBackup);
+  assert.strictEqual(res3.success, true, 'Import service-only sale with sell_price_per_kg: 0 must succeed');
 });
 
 test('هاوردەکردنی باکئەپی درووستی ئێستا و کۆن بە سەرکەوتوویی جێبەجێ دەبێت', () => {
