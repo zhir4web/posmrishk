@@ -18,7 +18,6 @@ class AppController {
     this.bindKeyboardShortcuts();
     this.bindSoundToggle();
     this.bindFullscreenToggle();
-    this.bindNetworkStatus();
     this.bindSettingsForm();
     this.bindBackupActions();
     this.bindGlobalInputSanitization();
@@ -161,26 +160,12 @@ class AppController {
   switchTab(tabId) {
     if (!tabId) return;
 
-    // Update Drawer navigation items
+    // Update drawer-nav-item (primary navigation)
     document.querySelectorAll('.drawer-nav-item').forEach(t => {
       t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
     });
 
-    // Update Top / Mobile nav tabs if present
-    document.querySelectorAll('.nav-tab').forEach(t => {
-      const isActive = t.getAttribute('data-tab') === tabId;
-      t.classList.toggle('active', isActive);
-      if (isActive) {
-        try {
-          t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        } catch (e) {}
-      }
-    });
-
-    document.querySelectorAll('.mobile-nav-item').forEach(t => {
-      t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
-    });
-
+    // Tab pane visibility
     document.querySelectorAll('.tab-pane').forEach(p => {
       p.classList.toggle('active', p.id === `tab_${tabId}`);
     });
@@ -463,10 +448,52 @@ class AppController {
         const newVal = !s.enable_sound;
         window.db.saveSettings({ enable_sound: newVal });
         btn.classList.toggle('active', newVal);
+        btn.textContent = newVal ? '🔊' : '🔇';
         this.showToast(newVal ? 'دەنگی سیستەم چالاککرا' : 'دەنگی سیستەم بێدەنگکرا', 'info');
         if (newVal) this.playSound('success');
       });
     }
+  }
+
+  bindFullscreenToggle() {
+    const btn = document.getElementById('btn_toggle_fullscreen');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      try {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+          btn.textContent = '⊡';
+        } else {
+          document.exitFullscreen().catch(() => {});
+          btn.textContent = '⛶';
+        }
+      } catch (e) {}
+    });
+  }
+
+  // No-op: network badge has been removed from UI, keep stub to avoid errors
+  bindNetworkStatus() {}
+
+  // Sound Effects via Web Audio API
+  playSound(type) {
+    try {
+      const s = window.db ? window.db.getSettings() : null;
+      if (s && !s.enable_sound) return;
+      if (!window.AudioContext && !window.webkitAudioContext) return;
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const freqs = { click: 440, success: 523, warning: 330, delete: 220, toggle: 392 };
+      osc.frequency.value = freqs[type] || 440;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.06, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+      osc.onended = () => { try { ctx.close(); } catch (e) {} };
+    } catch (e) {}
   }
 }
 
