@@ -1,7 +1,7 @@
 /**
  * Sargalu Chicken POS - Main Application Controller
- * Handles Navigation, Keypads, Fast Shortkeys, Modals, Print, Backups, Sound
- * Strict Data Integrity, DOM-safe Notifications, No Silent Coercion
+ * Handles Navigation, Keypads, Fast Shortkeys, Modals, Print, Backups, Sound, Service Worker & Offline Sync
+ * Strict Data Integrity, Mobile Touch Optimization, DOM-safe Notifications
  */
 
 class AppController {
@@ -16,33 +16,85 @@ class AppController {
     this.bindModals();
     this.bindKeyboardShortcuts();
     this.bindSoundToggle();
+    this.bindFullscreenToggle();
+    this.bindNetworkStatus();
     this.bindSettingsForm();
     this.bindBackupActions();
     this.bindGlobalInputSanitization();
-    this.initAudioContext();
+    this.registerServiceWorker();
   }
 
-  // Audio Context (Safe Web Audio API synthesizer)
-  initAudioContext() {
-    try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (AudioCtx) {
-        this.audioContext = new AudioCtx();
+  // Register PWA Service Worker for 100% Offline Capability
+  registerServiceWorker() {
+    if ('serviceWorker' in navigator && (window.location.protocol.startsWith('http') || window.location.protocol.startsWith('https'))) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => {
+            console.log('Sargalu POS Service Worker active with scope:', reg.scope);
+          })
+          .catch(err => {
+            console.warn('Service worker registration error:', err);
+          });
+      });
+    }
+  }
+
+  // Network Status Monitor (Online / Offline detection)
+  bindNetworkStatus() {
+    const badge = document.getElementById('network_status_badge');
+    const updateStatus = () => {
+      const isOnline = navigator.onLine;
+      if (badge) {
+        if (isOnline) {
+          badge.className = 'badge badge-success';
+          badge.innerHTML = '<span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span> ئۆنلاین';
+        } else {
+          badge.className = 'badge badge-warning';
+          badge.innerHTML = '<span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span> ئۆفلاین (ناوخۆیی)';
+        }
       }
-    } catch (e) {
-      console.warn('Web Audio API not supported', e);
+    };
+
+    window.addEventListener('online', updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+  }
+
+  // Fullscreen Toggle
+  bindFullscreenToggle() {
+    const btn = document.getElementById('btn_toggle_fullscreen');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        try {
+          if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen?.().catch(() => {});
+          } else {
+            document.exitFullscreen?.().catch(() => {});
+          }
+        } catch (e) {}
+      });
     }
   }
 
+  // Lazy Audio Context (Safe Web Audio API synthesizer for mobile & iPad)
   playSound(type = 'beep') {
-    const settings = window.db ? window.db.getSettings() : { enable_sound: true };
-    if (!settings.enable_sound || !this.audioContext) return;
-
-    if (this.audioContext.state === 'suspended') {
-      this.audioContext.resume();
-    }
-
     try {
+      const settings = window.db ? window.db.getSettings() : { enable_sound: true };
+      if (!settings.enable_sound) return;
+
+      if (!this.audioContext) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+        }
+      }
+
+      if (!this.audioContext) return;
+
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+
       const ctx = this.audioContext;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -100,7 +152,7 @@ class AppController {
         osc.stop(now + 0.3);
       }
     } catch (e) {
-      console.warn('Sound play error:', e);
+      // Audio failure should never halt application logic
     }
   }
 
@@ -136,7 +188,7 @@ class AppController {
         e.preventDefault();
         this.switchTab('losses');
       } else if (e.key === 'F5') {
-        // Allow F5 refresh or customize if needed
+        // Allow F5 refresh
       } else if (e.key === 'F6') {
         e.preventDefault();
         this.switchTab('advisor');
@@ -188,13 +240,46 @@ class AppController {
   }
 
   switchTab(tabId) {
+    if (!tabId) return;
+
     document.querySelectorAll('.nav-tab').forEach(t => {
-      t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
+      const isActive = t.getAttribute('data-tab') === tabId;
+      t.classList.toggle('active', isActive);
+      if (isActive) {
+        try {
+          t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        } catch (e) {}
+      }
     });
 
     document.querySelectorAll('.tab-pane').forEach(p => {
       p.classList.toggle('active', p.id === `tab_${tabId}`);
     });
+
+    try {
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    } catch (e) {}
+
+    // Refresh active view data cleanly
+    if (tabId === 'pos' && window.pos) {
+      window.pos.renderLiveBanner();
+      window.pos.renderSalesFeed();
+      window.pos.updateCalculation();
+    } else if (tabId === 'batches' && window.batches) {
+      window.batches.renderBatchesList();
+      window.batches.setDefaultDate();
+    } else if (tabId === 'losses' && window.losses) {
+      window.losses.renderLossesList();
+      window.losses.updateEstimatedValues();
+    } else if (tabId === 'expenses' && window.expenses) {
+      window.expenses.renderExpensesTable();
+    } else if (tabId === 'reports' && window.reports) {
+      window.reports.renderReport();
+    } else if (tabId === 'advisor' && window.advisor) {
+      window.advisor.renderFullPage();
+    } else if (tabId === 'settings' && window.db) {
+      this.populateSettingsForm(window.db.getSettings());
+    }
   }
 
   // Modals
@@ -271,7 +356,7 @@ class AppController {
 
   // Settings
   bindSettingsForm() {
-    const settings = window.db.getSettings();
+    const settings = window.db ? window.db.getSettings() : null;
     this.populateSettingsForm(settings);
 
     const form = document.getElementById('settings_form');
@@ -442,6 +527,4 @@ class AppController {
 }
 
 // Global initialization
-window.addEventListener('DOMContentLoaded', () => {
-  window.app = new AppController();
-});
+window.app = new AppController();

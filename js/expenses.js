@@ -34,16 +34,7 @@ class ExpensesModule {
       });
     });
 
-    // Submit button (direct click)
-    const submitBtn = document.getElementById('btn_submit_expense');
-    if (submitBtn) {
-      submitBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        this.submitExpense();
-      });
-    }
-
-    // Submit form fallback
+    // Form submit handler (single handler to prevent double submissions on mobile)
     const form = document.getElementById('expense_entry_form');
     if (form) {
       form.addEventListener('submit', (e) => {
