@@ -519,43 +519,47 @@ class PosModule {
   }
 
   submitSale(shouldPrint = true) {
-    const isService = this.currentSale.is_service_only;
-    
-    if (!isService && (!this.currentSale.weight_kg || this.currentSale.weight_kg <= 0)) {
-      if (window.app) {
-        window.app.showToast('تکایە سەرەتا کێشی مریشکەکان لەسەر تەرازوو دیاری بکە', 'warning');
-        window.app.playSound('error');
-      }
-      return;
-    }
-
-    const activeBatch = isService ? null : window.db.getActiveBatch(this.selectedPoultryType);
-
-    if (!isService && !activeBatch) {
-      if (window.app) {
-        window.app.showToast(`هیچ بارێکی کارا بۆ (${this.selectedPoultryType}) لە مەخزەن نییە. تکایە سەرەتا بار داخڵ بکە`, 'warning');
-        window.app.playSound('error');
-      }
-      return;
-    }
-
-    const sellPrice = isService ? 0 : this.getEffectiveMeatSellPrice();
-    const cleaningFee = this.getEffectiveCleaningFee();
-
-    const saleData = {
-      customer_name: this.currentSale.customer_name,
-      chickens_count: this.currentSale.chickens_count,
-      weight_kg: isService ? 0 : this.currentSale.weight_kg,
-      sell_price_per_kg: sellPrice,
-      is_cleaned: isCleaned,
-      cleaning_fee_per_chicken: cleaningFee,
-      item_type: isService ? 'تەنها پاککردن' : this.selectedPoultryType,
-      is_service_only: isService,
-      service_target_name: isService ? this.selectedServiceTarget : this.selectedPoultryType,
-      batch_id: activeBatch ? activeBatch.batch_id : null
-    };
+    if (this._submitting) return;
+    this._submitting = true;
 
     try {
+      const isService = this.currentSale.is_service_only;
+      const isCleaned = isService ? true : Boolean(this.currentSale.is_cleaned);
+      
+      if (!isService && (!this.currentSale.weight_kg || this.currentSale.weight_kg <= 0)) {
+        if (window.app) {
+          window.app.showToast('تکایە سەرەتا کێشی مریشکەکان لەسەر تەرازوو دیاری بکە', 'warning');
+          window.app.playSound('error');
+        }
+        return;
+      }
+
+      const activeBatch = isService ? null : window.db.getActiveBatch(this.selectedPoultryType);
+
+      if (!isService && !activeBatch) {
+        if (window.app) {
+          window.app.showToast(`هیچ بارێکی کارا بۆ (${this.selectedPoultryType}) لە مەخزەن نییە. تکایە سەرەتا بار داخڵ بکە`, 'warning');
+          window.app.playSound('error');
+        }
+        return;
+      }
+
+      const sellPrice = isService ? 0 : this.getEffectiveMeatSellPrice();
+      const cleaningFee = this.getEffectiveCleaningFee();
+
+      const saleData = {
+        customer_name: this.currentSale.customer_name,
+        chickens_count: this.currentSale.chickens_count,
+        weight_kg: isService ? 0 : this.currentSale.weight_kg,
+        sell_price_per_kg: sellPrice,
+        is_cleaned: isCleaned,
+        cleaning_fee_per_chicken: cleaningFee,
+        item_type: isService ? 'تەنها پاککردن' : this.selectedPoultryType,
+        is_service_only: isService,
+        service_target_name: isService ? this.selectedServiceTarget : this.selectedPoultryType,
+        batch_id: activeBatch ? activeBatch.batch_id : null
+      };
+
       const savedSale = window.db.saveSale(saleData);
 
       if (window.app) {
@@ -575,6 +579,8 @@ class PosModule {
         window.app.playSound('warning');
         window.app.showToast(err.message || 'هەڵەیەک ڕوویدا لە تۆمارکردنی فرۆشتن', 'danger');
       }
+    } finally {
+      this._submitting = false;
     }
   }
 
