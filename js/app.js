@@ -27,138 +27,28 @@ class AppController {
   // Register PWA Service Worker for 100% Offline Capability
   registerServiceWorker() {
     if ('serviceWorker' in navigator && (window.location.protocol.startsWith('http') || window.location.protocol.startsWith('https'))) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => {
-            console.log('Sargalu POS Service Worker active with scope:', reg.scope);
-          })
-          .catch(err => {
-            console.warn('Service worker registration error:', err);
-          });
-      });
-    }
-  }
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => {
+          console.log('Sargalu POS Service Worker active with scope:', reg.scope);
+          reg.update().catch(() => {});
+        })
+        .catch(err => {
+          console.warn('Service worker registration error:', err);
+        });
 
-  // Network Status Monitor (Online / Offline detection)
-  bindNetworkStatus() {
-    const badge = document.getElementById('network_status_badge');
-    const updateStatus = () => {
-      const isOnline = navigator.onLine;
-      if (badge) {
-        if (isOnline) {
-          badge.className = 'badge badge-success';
-          badge.innerHTML = '<span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display: inline-block;"></span> ئۆنلاین';
-        } else {
-          badge.className = 'badge badge-warning';
-          badge.innerHTML = '<span style="width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: inline-block;"></span> ئۆفلاین (ناوخۆیی)';
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
         }
-      }
-    };
-
-    window.addEventListener('online', updateStatus);
-    window.addEventListener('offline', updateStatus);
-    updateStatus();
-  }
-
-  // Fullscreen Toggle
-  bindFullscreenToggle() {
-    const btn = document.getElementById('btn_toggle_fullscreen');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        try {
-          if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen?.().catch(() => {});
-          } else {
-            document.exitFullscreen?.().catch(() => {});
-          }
-        } catch (e) {}
       });
-    }
-  }
-
-  // Lazy Audio Context (Safe Web Audio API synthesizer for mobile & iPad)
-  playSound(type = 'beep') {
-    try {
-      const settings = window.db ? window.db.getSettings() : { enable_sound: true };
-      if (!settings.enable_sound) return;
-
-      if (!this.audioContext) {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-          this.audioContext = new AudioCtx();
-        }
-      }
-
-      if (!this.audioContext) return;
-
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume().catch(() => {});
-      }
-
-      const ctx = this.audioContext;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      const now = ctx.currentTime;
-
-      if (type === 'beep') {
-        osc.frequency.setValueAtTime(880, now); // A5
-        gain.gain.setValueAtTime(0.12, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-        osc.start(now);
-        osc.stop(now + 0.08);
-      } else if (type === 'cash') {
-        // High register two-tone chime
-        osc.frequency.setValueAtTime(1046.5, now); // C6
-        osc.frequency.setValueAtTime(1318.5, now + 0.08); // E6
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      } else if (type === 'click') {
-        osc.frequency.setValueAtTime(440, now);
-        gain.gain.setValueAtTime(0.08, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-        osc.start(now);
-        osc.stop(now + 0.04);
-      } else if (type === 'delete') {
-        osc.frequency.setValueAtTime(300, now);
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now);
-        osc.stop(now + 0.15);
-      } else if (type === 'toggle') {
-        osc.frequency.setValueAtTime(659.25, now); // E5
-        gain.gain.setValueAtTime(0.1, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-        osc.start(now);
-        osc.stop(now + 0.06);
-      } else if (type === 'warning' || type === 'error') {
-        osc.frequency.setValueAtTime(220, now);
-        osc.frequency.setValueAtTime(180, now + 0.1);
-        gain.gain.setValueAtTime(0.18, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-        osc.start(now);
-        osc.stop(now + 0.25);
-      } else if (type === 'success') {
-        osc.frequency.setValueAtTime(523.25, now); // C5
-        osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-        osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc.start(now);
-        osc.stop(now + 0.3);
-      }
-    } catch (e) {
-      // Audio failure should never halt application logic
     }
   }
 
   // Navigation
   bindNavigation() {
-    document.querySelectorAll('.nav-tab').forEach(tab => {
+    document.querySelectorAll('.nav-tab, .mobile-nav-item').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const tabId = e.currentTarget.getAttribute('data-tab');
         this.switchTab(tabId);
@@ -250,6 +140,10 @@ class AppController {
           t.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         } catch (e) {}
       }
+    });
+
+    document.querySelectorAll('.mobile-nav-item').forEach(t => {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
     });
 
     document.querySelectorAll('.tab-pane').forEach(p => {
