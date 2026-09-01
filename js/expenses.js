@@ -7,6 +7,7 @@
 class ExpensesModule {
   constructor() {
     this.selectedCategory = 'غاز';
+    this._submitting = false;
     this.init();
   }
 
@@ -34,7 +35,16 @@ class ExpensesModule {
       });
     });
 
-    // Form submit handler (single handler to prevent double submissions on mobile)
+    // Direct submit button click handler
+    const submitBtn = document.getElementById('btn_submit_expense');
+    if (submitBtn) {
+      submitBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.submitExpense();
+      });
+    }
+
+    // Form submit handler
     const form = document.getElementById('expense_entry_form');
     if (form) {
       form.addEventListener('submit', (e) => {
@@ -144,6 +154,9 @@ class ExpensesModule {
   }
 
   submitExpense() {
+    if (this._submitting) return;
+    this._submitting = true;
+
     try {
       const descInput = document.getElementById('expense_description');
       const unitTypeInput = document.getElementById('expense_unit_type');
@@ -190,6 +203,8 @@ class ExpensesModule {
     } catch (err) {
       console.error('Error submitting expense:', err);
       if (window.app) window.app.showToast(err.message || 'کێشەیەک ڕوویدا لە تۆمارکردن', 'danger');
+    } finally {
+      this._submitting = false;
     }
   }
 

@@ -498,14 +498,14 @@ class AppController {
     // Reset All Data
     const resetBtn = document.getElementById('btn_clear_all') || document.getElementById('btn_reset_all_data');
     if (resetBtn) {
-      resetBtn.addEventListener('click', () => {
-        if (confirm('⚠️ ئاگاداری: ئایا بە تەواوی دڵنیایت لە سڕینەوەی سەرجەم داتاکان (بار، فرۆشتن، زیان و خەرجی)؟ ئەم کردارە ناگەڕێتەوە.')) {
-          if (confirm('دووپاتکردنەوە: تکایە دڵنیابە پێش سڕینەوە باکئەپت دابەزاندبێت. سڕینەوە ئەنجام بدرێت؟')) {
-            window.db.clearAllData();
-            this.showToast('سەرجەم داتاکان سڕانەوە', 'danger');
-            this.playSound('delete');
-            setTimeout(() => location.reload(), 600);
-          }
+      resetBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const ok = confirm('⚠️ ئاگاداری: ئایا بە تەواوی دڵنیایت لە سڕینەوەی سەرجەم داتاکان (بار، فرۆشتن، زیان و خەرجی)؟ ئەم کردارە ناگەڕێتەوە.');
+        if (ok) {
+          window.db.clearAllData();
+          this.showToast('سەرجەم داتاکان بە سەرکەوتوویی سڕانەوە', 'danger');
+          this.playSound('delete');
+          setTimeout(() => location.reload(), 600);
         }
       });
     }
