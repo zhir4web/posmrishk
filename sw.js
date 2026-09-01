@@ -4,7 +4,7 @@
  * 100% Functional Offline for PWA Mobile & Tablet
  */
 
-const CACHE_NAME = 'sargalu-pos-v14';
+const CACHE_NAME = 'sargalu-pos-v15';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

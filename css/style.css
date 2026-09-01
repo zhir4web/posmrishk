@@ -1,53 +1,79 @@
 /* 
+ * ==========================================================================
  * Sargalu Chicken POS (مریشک فرۆشی سەرگەڵو)
- * Ultra-Modern Mobile & iPad Touch-Optimized RTL Design System
- * 100% Offline-Ready Native Kurdish/Arabic Typography & Glassmorphism
+ * Ultra-Modern Next-Gen Mobile & iPad Touch POS Design System
+ * 100% Offline-Ready Kurdish/Arabic RTL Modern Fintech Interface
+ * ==========================================================================
  */
 
 :root {
-  --primary: #059669;          /* Modern Emerald */
-  --primary-hover: #047857;
-  --primary-light: #d1fae5;
-  --primary-glow: rgba(5, 150, 105, 0.28);
-  --primary-gradient: linear-gradient(135deg, #059669 0%, #047857 100%);
-  
-  --secondary: #ea580c;        /* Amber Orange */
-  --secondary-hover: #c2410c;
-  --secondary-light: #ffedd5;
-  --secondary-gradient: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
-  
-  --danger: #dc2626;           /* Crimson Red */
-  --danger-hover: #b91c1c;
-  --danger-light: #fee2e2;
-  
-  --info: #0284c7;             /* Sky Blue */
-  --info-light: #e0f2fe;
+  /* Brand Palette - Emerald Fintech Luxury */
+  --primary: #10b981;
+  --primary-dark: #059669;
+  --primary-darker: #047857;
+  --primary-light: #ecfdf5;
+  --primary-lighter: #f0fdf4;
+  --primary-glow: rgba(16, 185, 129, 0.28);
+  --primary-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --primary-gradient-hover: linear-gradient(135deg, #059669 0%, #047857 100%);
 
-  --bg-main: #f1f5f9;          /* Clean Slate 100 */
+  /* Warm Accent - Amber */
+  --accent: #f59e0b;
+  --accent-dark: #d97706;
+  --accent-light: #fffbeb;
+  --accent-glow: rgba(245, 158, 11, 0.25);
+  --accent-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+
+  /* Danger & Loss */
+  --danger: #ef4444;
+  --danger-dark: #dc2626;
+  --danger-light: #fef2f2;
+  --danger-glow: rgba(239, 68, 68, 0.22);
+  --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+
+  /* Info / Secondary */
+  --info: #0ea5e9;
+  --info-light: #f0f9ff;
+  --info-glow: rgba(14, 165, 233, 0.22);
+
+  /* Surface & Background Colors */
+  --bg-app: #f8fafc;
+  --bg-subtle: #f1f5f9;
   --surface: #ffffff;
-  --surface-alt: #f8fafc;
   --surface-raised: #ffffff;
+  --surface-alt: #f8fafc;
   --border: #e2e8f0;
-  --border-focus: #059669;
+  --border-focus: #10b981;
+  --border-subtle: #f1f5f9;
 
+  /* Typography Colors */
   --text-main: #0f172a;
   --text-muted: #64748b;
+  --text-light: #94a3b8;
   --text-inverse: #ffffff;
 
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 26px;
+  /* Border Radii */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.07);
-  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.09);
-  --shadow-glow: 0 6px 20px rgba(5, 150, 105, 0.25);
+  /* Elevation Shadows */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 6px 18px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 14px 32px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 20px 45px rgba(15, 23, 42, 0.12);
+  --shadow-glow: 0 8px 24px var(--primary-glow);
+  --shadow-glow-accent: 0 8px 24px var(--accent-glow);
 
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Vazirmatn", "Noto Sans Arabic", "Damascus", "Geeza Pro", "Helvetica Neue", Arial, sans-serif;
+  /* Typography */
+  --font-family: "Vazirmatn", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", "Damascus", "Geeza Pro", "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Reset & Base */
+/* Base Reset */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -58,20 +84,26 @@
 html {
   direction: rtl;
   font-family: var(--font-family);
-  background-color: var(--bg-main);
+  background-color: var(--bg-app);
   color: var(--text-main);
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-app);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0px, transparent 50%);
+  background-attachment: fixed;
   overflow-x: hidden;
   user-select: none;
   -webkit-user-select: none;
-  padding-bottom: 72px; /* For mobile bottom navigation */
+  padding-bottom: 74px; /* Room for mobile floating bottom bar */
 }
 
 @media (min-width: 769px) {
@@ -92,29 +124,28 @@ button {
   touch-action: manipulation;
 }
 
-/* Touch targets optimization */
-button, .touch-btn, .nav-tab, .keypad-btn {
-  min-height: 48px;
+/* Micro-Interactions & Touch Tactile Feedback */
+button, .touch-btn, .nav-tab, .keypad-btn, .mobile-nav-item {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.1s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 button:active, .touch-btn:active, .keypad-btn:active {
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 
-/* App Header */
+/* ==================== APP HEADER (Modern Glass Bar) ==================== */
 .app-header {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
   position: sticky;
   top: 0;
-  z-index: 50;
-  box-shadow: var(--shadow-sm);
+  z-index: 60;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.03);
 }
 
 .header-top {
@@ -123,12 +154,14 @@ button:active, .touch-btn:active, .keypad-btn:active {
   justify-content: space-between;
   padding: 0.65rem 1.25rem;
   gap: 1rem;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .brand-section {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .brand-logo {
@@ -141,12 +174,12 @@ button:active, .touch-btn:active, .keypad-btn:active {
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
-  box-shadow: 0 4px 12px var(--primary-glow);
+  box-shadow: var(--shadow-glow);
   flex-shrink: 0;
 }
 
 .brand-title {
-  font-size: 1.2rem;
+  font-size: 1.22rem;
   font-weight: 900;
   color: var(--text-main);
   letter-spacing: -0.4px;
@@ -154,7 +187,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .brand-subtitle {
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   color: var(--text-muted);
   font-weight: 600;
 }
@@ -166,8 +199,8 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .badge {
-  padding: 0.35rem 0.75rem;
-  border-radius: 9999px;
+  padding: 0.35rem 0.8rem;
+  border-radius: var(--radius-full);
   font-size: 0.82rem;
   font-weight: 800;
   display: inline-flex;
@@ -176,32 +209,32 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .badge-success {
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
 }
 
 .badge-warning {
-  background: #fef3c7;
-  color: #b45309;
+  background: #fffbeb;
+  color: #92400e;
   border: 1px solid #fde68a;
 }
 
 .badge-primary {
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--primary-dark);
   border: 1px solid #a7f3d0;
 }
 
 .badge-info {
   background: var(--info-light);
-  color: var(--info);
+  color: #0369a1;
   border: 1px solid #bae6fd;
 }
 
 .badge-danger {
   background: var(--danger-light);
-  color: var(--danger);
+  color: var(--danger-dark);
   border: 1px solid #fecaca;
 }
 
@@ -209,37 +242,41 @@ button:active, .touch-btn:active, .keypad-btn:active {
   width: 40px;
   height: 40px;
   border-radius: var(--radius-md);
-  background: var(--surface-alt);
+  background: var(--surface);
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.15rem;
   flex-shrink: 0;
+  box-shadow: var(--shadow-xs);
 }
 
 .icon-btn:hover, .icon-btn:active {
-  background: var(--border);
+  background: var(--surface-alt);
   color: var(--text-main);
+  border-color: #cbd5e1;
 }
 
 .icon-btn.active {
   background: var(--primary-light);
-  color: var(--primary);
+  color: var(--primary-dark);
   border-color: var(--primary);
 }
 
-/* Nav Tabs (Top Horizontal Bar on Desktop/Tablet) */
+/* ==================== TOP NAVIGATION TABS ==================== */
 .nav-tabs-wrapper {
   display: flex;
-  gap: 0.35rem;
-  padding: 0.35rem 1rem;
+  gap: 0.4rem;
+  padding: 0.4rem 1.25rem;
   overflow-x: auto;
   scrollbar-width: none;
-  background: #f8fafc;
-  border-top: 1px solid var(--border);
+  background: #ffffff;
+  border-top: 1px solid var(--border-subtle);
   -webkit-overflow-scrolling: touch;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .nav-tabs-wrapper::-webkit-scrollbar {
@@ -247,10 +284,10 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .nav-tab {
-  padding: 0.55rem 1.05rem;
+  padding: 0.55rem 1.1rem;
   border-radius: var(--radius-md);
   color: var(--text-muted);
-  font-weight: 700;
+  font-weight: 800;
   font-size: 0.92rem;
   display: flex;
   align-items: center;
@@ -261,39 +298,36 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .nav-tab:hover {
   color: var(--text-main);
-  background: var(--surface);
+  background: var(--surface-alt);
 }
 
 .nav-tab.active {
   background: var(--primary-gradient);
   color: white;
-  box-shadow: 0 4px 14px var(--primary-glow);
+  box-shadow: var(--shadow-glow);
 }
 
-/* Mobile Bottom Navigation Bar (< 768px) */
+/* ==================== MOBILE BOTTOM FLOATING NAVIGATION ==================== */
 .mobile-bottom-nav {
   display: none;
 }
 
 @media (max-width: 768px) {
-  .nav-tabs-wrapper {
-    display: flex; /* keep top horizontal scroll as quick access */
-  }
-
   .mobile-bottom-nav {
     display: flex;
     position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.06);
+    bottom: 8px;
+    left: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(226, 232, 240, 0.85);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
     z-index: 90;
-    height: 64px;
-    padding: 0 0.25rem;
+    height: 62px;
+    padding: 0 0.35rem;
     justify-content: space-around;
     align-items: center;
   }
@@ -304,29 +338,31 @@ button:active, .touch-btn:active, .keypad-btn:active {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    height: 50px;
     color: var(--text-muted);
-    font-size: 0.68rem;
+    font-size: 0.72rem;
     font-weight: 800;
-    gap: 3px;
+    gap: 2px;
     border-radius: var(--radius-md);
     transition: all 0.15s ease;
   }
 
   .mobile-nav-item .m-icon {
     font-size: 1.35rem;
+    transition: transform 0.15s ease;
   }
 
   .mobile-nav-item.active {
-    color: var(--primary);
+    color: var(--primary-dark);
+    background: var(--primary-light);
   }
 
   .mobile-nav-item.active .m-icon {
-    transform: scale(1.15);
+    transform: scale(1.18);
   }
 }
 
-/* Main Container */
+/* ==================== MAIN CONTENT LAYOUT ==================== */
 .main-content {
   flex: 1;
   padding: 1.25rem;
@@ -337,7 +373,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .tab-pane {
   display: none;
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .tab-pane.active {
@@ -345,17 +381,22 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Cards */
+/* Ultra-Clean Cards */
 .card {
   background: var(--surface);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
-  padding: 1.25rem;
+  padding: 1.35rem;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .card-title {
@@ -364,11 +405,11 @@ button:active, .touch-btn:active, .keypad-btn:active {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.1rem;
   color: var(--text-main);
 }
 
-/* ==================== POS MODULE ==================== */
+/* ==================== TAB 1: POS SCREEN ==================== */
 .pos-layout {
   display: grid;
   grid-template-columns: 1.35fr 0.95fr;
@@ -382,26 +423,27 @@ button:active, .touch-btn:active, .keypad-btn:active {
   }
 }
 
-/* Live Active Batch Banner in POS */
+/* Live Active Batch Banner */
 .pos-batch-alert {
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: white;
-  padding: 0.9rem 1.25rem;
+  padding: 0.95rem 1.35rem;
   border-radius: var(--radius-lg);
   margin-bottom: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   box-shadow: var(--shadow-glow);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .pos-batch-alert .highlight {
   font-weight: 900;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: #fef08a;
 }
 
-/* POS Counter Elements */
+/* Form Rows & Inputs */
 .pos-row {
   margin-bottom: 1rem;
 }
@@ -423,43 +465,44 @@ button:active, .touch-btn:active, .keypad-btn:active {
   font-size: 1rem;
   background: var(--surface);
   color: var(--text-main);
+  font-weight: 600;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .input-text:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+  box-shadow: 0 0 0 3.5px var(--primary-glow);
 }
 
-/* Poultry Type Selector Grid */
+/* Poultry Selector Grid */
 .poultry-type-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
 }
 
 .poultry-pill-btn {
   background: var(--surface-alt);
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.65rem 0.4rem;
+  padding: 0.7rem 0.4rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
   cursor: pointer;
   transition: all 0.15s ease;
-  min-height: 64px;
+  min-height: 68px;
 }
 
 .poultry-pill-btn .p-icon {
-  font-size: 1.45rem;
+  font-size: 1.5rem;
 }
 
 .poultry-pill-btn .p-name {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 900;
   color: var(--text-main);
   text-align: center;
@@ -468,33 +511,33 @@ button:active, .touch-btn:active, .keypad-btn:active {
 .poultry-pill-btn.active {
   border-color: var(--primary);
   background: var(--primary-light);
-  box-shadow: 0 4px 12px var(--primary-glow);
+  box-shadow: var(--shadow-glow);
 }
 
 .poultry-pill-btn.active .p-name {
-  color: var(--primary-hover);
+  color: var(--primary-dark);
 }
 
 .poultry-pill-btn.service-btn {
-  border-color: #f59e0b;
+  border-color: #fde68a;
 }
 
 .poultry-pill-btn.service-btn.active {
-  border-color: #d97706;
-  background: #fef3c7;
-  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: var(--shadow-glow-accent);
 }
 
 .poultry-pill-btn.service-btn.active .p-name {
-  color: #b45309;
+  color: var(--accent-dark);
 }
 
-/* Service Only Bird Sub-Selector Panel */
+/* Service Only Bird Selector Panel */
 .service-only-panel {
-  background: #fffbeb;
+  background: #fffdf5;
   border: 2px dashed #f59e0b;
   border-radius: var(--radius-lg);
-  padding: 0.85rem;
+  padding: 0.95rem;
   margin-bottom: 1rem;
   animation: fadeIn 0.2s ease;
 }
@@ -510,7 +553,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   background: white;
   border: 2px solid #fde68a;
   border-radius: var(--radius-md);
-  padding: 0.55rem 0.4rem;
+  padding: 0.6rem 0.4rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -520,28 +563,28 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .service-target-btn .st-icon {
-  font-size: 1.3rem;
+  font-size: 1.35rem;
 }
 
 .service-target-btn .st-title {
   font-weight: 900;
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--text-main);
 }
 
 .service-target-btn .st-fee {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   font-weight: 900;
   color: #b45309;
   background: #fef3c7;
-  padding: 2px 6px;
+  padding: 2px 7px;
   border-radius: var(--radius-sm);
 }
 
 .service-target-btn.active {
-  border-color: #d97706;
-  background: #d97706;
-  box-shadow: 0 4px 10px rgba(217, 119, 6, 0.3);
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
 }
 
 .service-target-btn.active .st-title {
@@ -550,27 +593,27 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .service-target-btn.active .st-fee {
   background: white;
-  color: #b45309;
+  color: var(--accent-dark);
 }
 
-/* Weight Screen & Fast Keypad */
+/* Weight Screen (OLED Digital Scale) */
 .weight-screen {
-  background: #0f172a;
-  color: #22c55e;
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  color: #4ade80;
   border-radius: var(--radius-lg);
-  padding: 0.85rem 1.25rem;
+  padding: 0.95rem 1.35rem;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.5);
-  margin-bottom: 0.75rem;
-  border: 2px solid #334155;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.6), 0 4px 14px rgba(15, 23, 42, 0.08);
+  margin-bottom: 0.85rem;
+  border: 2px solid #1e293b;
   position: relative;
 }
 
 .weight-screen.focused {
   border-color: #22c55e;
-  box-shadow: 0 0 16px rgba(34, 197, 94, 0.3), inset 0 2px 6px rgba(0,0,0,0.5);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.25), inset 0 2px 8px rgba(0,0,0,0.6);
 }
 
 .weight-screen .screen-label {
@@ -581,23 +624,23 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .weight-screen .screen-val {
   font-family: monospace, var(--font-family);
-  font-size: 2.75rem;
+  font-size: 2.85rem;
   font-weight: 900;
   letter-spacing: 1px;
 }
 
 .weight-screen .screen-unit {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: #94a3b8;
   margin-right: 0.5rem;
   font-weight: 800;
 }
 
-/* Custom Keypad */
+/* Custom iPad Touch Keypad */
 .keypad-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin-bottom: 1rem;
 }
 
@@ -609,11 +652,12 @@ button:active, .touch-btn:active, .keypad-btn:active {
   font-size: 1.45rem;
   font-weight: 900;
   color: var(--text-main);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+  box-shadow: var(--shadow-xs);
 }
 
 .keypad-btn:hover {
   background: var(--surface-alt);
+  border-color: #cbd5e1;
 }
 
 .keypad-btn.action-btn {
@@ -629,15 +673,15 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .quick-weight-helpers {
   display: flex;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
 }
 
 .helper-btn {
   flex: 1;
   height: 40px;
   border-radius: var(--radius-sm);
-  background: #f8fafc;
+  background: var(--surface-alt);
   border: 1.5px solid var(--border);
   font-weight: 800;
   font-size: 0.88rem;
@@ -662,10 +706,10 @@ button:active, .touch-btn:active, .keypad-btn:active {
   background: var(--surface-alt);
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 0.75rem;
+  padding: 0.85rem;
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   cursor: pointer;
   transition: all 0.15s ease;
   position: relative;
@@ -673,7 +717,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .cleaning-choice-btn .choice-icon {
-  font-size: 1.45rem;
+  font-size: 1.55rem;
 }
 
 .cleaning-choice-btn .choice-text {
@@ -682,7 +726,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .cleaning-choice-btn .choice-title {
   font-weight: 900;
-  font-size: 0.92rem;
+  font-size: 0.94rem;
   color: var(--text-main);
 }
 
@@ -695,33 +739,33 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .cleaning-choice-btn .choice-check {
   display: none;
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 900;
-  color: var(--primary);
+  color: var(--primary-dark);
 }
 
 .cleaning-choice-btn.active {
   border-color: var(--primary);
   background: var(--primary-light);
-  box-shadow: 0 4px 12px var(--primary-glow);
+  box-shadow: var(--shadow-glow);
 }
 
 .cleaning-choice-btn.active .choice-title {
-  color: var(--primary-hover);
+  color: var(--primary-dark);
 }
 
 .cleaning-choice-btn.active .choice-check {
   display: block;
 }
 
-/* POS Summary Card */
+/* Live Grand Total & Checkout Summary */
 .pos-summary-card {
-  background: #0f172a;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
   color: white;
   border-radius: var(--radius-lg);
-  padding: 1.1rem 1.25rem;
-  border: 2px solid #1e293b;
-  box-shadow: var(--shadow-md);
+  padding: 1.25rem 1.35rem;
+  border: 1px solid #334155;
+  box-shadow: var(--shadow-lg);
 }
 
 .pos-summary-card .summary-row {
@@ -739,19 +783,19 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
 .pos-summary-card .total-row {
   border-top: 1.5px dashed #334155;
-  padding-top: 0.75rem;
-  margin-top: 0.75rem;
+  padding-top: 0.85rem;
+  margin-top: 0.85rem;
   margin-bottom: 0;
 }
 
 .pos-summary-card .grand-total-val {
-  font-size: 1.85rem;
+  font-size: 2.1rem;
   font-weight: 900;
   color: #4ade80;
   letter-spacing: 0.5px;
 }
 
-/* Action Buttons */
+/* Action Buttons Grid */
 .pos-actions-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
@@ -764,41 +808,42 @@ button:active, .touch-btn:active, .keypad-btn:active {
   color: white;
   border-radius: var(--radius-md);
   font-weight: 900;
-  font-size: 1.1rem;
-  height: 52px;
+  font-size: 1.12rem;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: 0 4px 14px var(--primary-glow);
-  transition: all 0.15s ease;
+  box-shadow: var(--shadow-glow);
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #047857 0%, #065f46 100%);
-  box-shadow: 0 6px 18px var(--primary-glow);
+  background: var(--primary-gradient-hover);
+  box-shadow: 0 8px 26px var(--primary-glow);
 }
 
 .btn-secondary {
-  background: var(--surface-alt);
+  background: var(--surface);
   color: var(--text-main);
   border: 1.5px solid var(--border);
   border-radius: var(--radius-md);
   font-weight: 800;
   font-size: 1.05rem;
-  height: 52px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  transition: all 0.15s ease;
+  box-shadow: var(--shadow-xs);
 }
 
 .btn-secondary:hover {
-  background: var(--border);
+  background: var(--surface-alt);
+  border-color: #cbd5e1;
 }
 
-/* Sales Feed in POS */
+/* Sales Feed Stream */
 .sales-feed-header {
   display: flex;
   align-items: center;
@@ -833,7 +878,177 @@ button:active, .touch-btn:active, .keypad-btn:active {
   box-shadow: var(--shadow-sm);
 }
 
-/* Data Tables */
+/* ==================== BATCHES & INVENTORY ==================== */
+.batches-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .batches-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.metric-pill {
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metric-pill .lbl {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.metric-pill .val {
+  font-size: 1.08rem;
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+/* ==================== EXPENSES MODULE ==================== */
+.presets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+
+.preset-card-btn {
+  background: var(--surface-alt);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.8rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-card-btn .icon {
+  font-size: 1.55rem;
+}
+
+.preset-card-btn .name {
+  font-weight: 900;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.preset-card-btn .sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.preset-card-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+.preset-card-btn.active .name {
+  color: var(--accent-dark);
+}
+
+/* ==================== REPORTS & PROFIT CALCULATOR ==================== */
+.report-hero-card {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: white;
+  border-radius: var(--radius-lg);
+  padding: 1.6rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid #334155;
+}
+
+.profit-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.profit-big-val {
+  font-size: 2.9rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.profit-big-val.positive {
+  color: #4ade80;
+}
+
+.profit-big-val.negative {
+  color: #f87171;
+}
+
+.report-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.report-card-title {
+  font-size: 1.05rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.95rem;
+  color: var(--text-main);
+}
+
+.report-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.report-metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.report-metric-item .name {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.report-metric-item .number {
+  font-weight: 900;
+  color: var(--text-main);
+}
+
+/* ==================== DATA TABLES ==================== */
 .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -867,184 +1082,32 @@ button:active, .touch-btn:active, .keypad-btn:active {
   background: #f8fafc;
 }
 
-/* Batches Grid */
-.batches-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .batches-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.metrics-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.65rem;
-  margin: 1rem 0;
-}
-
-.metric-pill {
-  background: var(--surface-alt);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.65rem 0.85rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.metric-pill .lbl {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.metric-pill .val {
-  font-size: 1.05rem;
-  font-weight: 900;
-  color: var(--text-main);
-}
-
-/* Presets Grid for Expenses */
-.presets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 1.25rem;
-}
-
-.preset-card-btn {
-  background: var(--surface-alt);
-  border: 2px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.75rem 0.5rem;
-  display: flex;
-  flex-direction: column;
+.btn-delete {
+  background: var(--danger-light);
+  color: var(--danger);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-sm);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  justify-content: center;
+  font-size: 0.95rem;
 }
 
-.preset-card-btn .icon {
-  font-size: 1.5rem;
-}
-
-.preset-card-btn .name {
-  font-weight: 900;
-  font-size: 0.88rem;
-  color: var(--text-main);
-}
-
-.preset-card-btn .sub {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.preset-card-btn.active {
-  border-color: var(--secondary);
-  background: var(--secondary-light);
-  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.2);
-}
-
-.preset-card-btn.active .name {
-  color: var(--secondary-hover);
-}
-
-/* Reports Hero Card */
-.report-hero-card {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+.btn-delete:hover {
+  background: var(--danger);
   color: white;
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  margin-bottom: 1.25rem;
-  box-shadow: var(--shadow-lg);
-  border: 1px solid #334155;
 }
 
-.profit-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 0.5rem;
-}
-
-.profit-big-val {
-  font-size: 2.75rem;
-  font-weight: 900;
-  letter-spacing: -0.5px;
-}
-
-.profit-big-val.positive {
-  color: #4ade80;
-}
-
-.profit-big-val.negative {
-  color: #f87171;
-}
-
-.report-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
-}
-
-.report-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.15rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.report-card-title {
-  font-size: 1rem;
-  font-weight: 900;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 0.85rem;
-  color: var(--text-main);
-}
-
-.report-metric-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.report-metric-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.88rem;
-}
-
-.report-metric-item .name {
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.report-metric-item .number {
-  font-weight: 900;
-  color: var(--text-main);
-}
-
-/* Modals */
+/* ==================== MODALS & DIALOGS ==================== */
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(15, 23, 42, 0.68);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 100;
@@ -1066,7 +1129,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   border: 1px solid var(--border);
   animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1077,7 +1140,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .modal-header {
-  padding: 1rem 1.25rem;
+  padding: 1rem 1.35rem;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1085,16 +1148,16 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .modal-title {
-  font-size: 1.15rem;
+  font-size: 1.18rem;
   font-weight: 900;
 }
 
 .modal-body {
-  padding: 1.25rem;
+  padding: 1.35rem;
 }
 
 .modal-footer {
-  padding: 1rem 1.25rem;
+  padding: 1rem 1.35rem;
   border-top: 1px solid var(--border);
   display: flex;
   gap: 0.75rem;
@@ -1174,7 +1237,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   color: #444;
 }
 
-/* @media print for 80mm & 58mm POS Thermal Printers */
+/* @media print for 80mm & 58mm Thermal Printers */
 @media print {
   body * {
     visibility: hidden;
@@ -1202,10 +1265,10 @@ button:active, .touch-btn:active, .keypad-btn:active {
   }
 }
 
-/* Toast Notifications */
+/* Toast Container */
 .toast-container {
   position: fixed;
-  bottom: 80px; /* Above mobile bottom bar */
+  bottom: 84px; /* Above mobile bottom floating bar */
   left: 50%;
   transform: translateX(-50%);
   z-index: 999;
@@ -1230,7 +1293,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   border-radius: var(--radius-lg);
   font-weight: 800;
   font-size: 0.95rem;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-xl);
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -1247,7 +1310,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 }
 
 .toast.toast-warning {
-  background: var(--secondary);
+  background: var(--accent-dark);
 }
 
 @keyframes slideUp {
@@ -1255,26 +1318,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Delete / Action Mini Buttons */
-.btn-delete {
-  background: var(--danger-light);
-  color: var(--danger);
-  border: 1px solid #fecaca;
-  border-radius: var(--radius-sm);
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.95rem;
-}
-
-.btn-delete:hover {
-  background: var(--danger);
-  color: white;
-}
-
-/* ==================== MOBILE OPTIMIZATIONS (< 768px) ==================== */
+/* ==================== MOBILE SCREEN OPTIMIZATIONS (< 768px) ==================== */
 @media (max-width: 768px) {
   html {
     font-size: 15px;
@@ -1303,17 +1347,17 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
   .poultry-type-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.4rem;
+    gap: 0.45rem;
   }
 
   .poultry-pill-btn {
-    min-height: 56px;
-    padding: 0.5rem 0.3rem;
+    min-height: 60px;
+    padding: 0.55rem 0.3rem;
   }
 
   .service-target-grid {
     grid-template-columns: repeat(2, 1fr);
-    gap: 0.4rem;
+    gap: 0.45rem;
   }
 
   .keypad-btn {
@@ -1322,7 +1366,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
   }
 
   .quick-weight-helpers {
-    gap: 0.3rem;
+    gap: 0.35rem;
   }
 
   .helper-btn {
@@ -1337,7 +1381,7 @@ button:active, .touch-btn:active, .keypad-btn:active {
 
   .pos-actions-grid {
     grid-template-columns: 1fr;
-    gap: 0.5rem;
+    gap: 0.55rem;
   }
 
   .modal-dialog {
