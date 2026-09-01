@@ -496,7 +496,7 @@ class AppController {
     }
 
     // Reset All Data
-    const resetBtn = document.getElementById('btn_reset_all_data');
+    const resetBtn = document.getElementById('btn_clear_all') || document.getElementById('btn_reset_all_data');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
         if (confirm('⚠️ ئاگاداری: ئایا بە تەواوی دڵنیایت لە سڕینەوەی سەرجەم داتاکان (بار، فرۆشتن، زیان و خەرجی)؟ ئەم کردارە ناگەڕێتەوە.')) {
