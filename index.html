@@ -19,7 +19,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
   <!-- Stylesheet with Cache Busting -->
-  <link rel="stylesheet" href="css/style.css?v=20260901_16">
+  <link rel="stylesheet" href="css/style.css?v=20260901_17">
 </head>
 <body>
 
@@ -27,10 +27,14 @@
   <header class="app-header no-print">
     <div class="header-top">
       <div class="brand-section">
+        <button type="button" id="btn_open_menu" class="menu-toggle-btn" title="کردنەوەی مینوو">
+          <span class="menu-icon">☰</span>
+          <span class="menu-text">مینوو</span>
+        </button>
         <div class="brand-logo">🐔</div>
         <div>
           <div class="brand-title">مریشک فرۆشی سەرگەڵو</div>
-          <div class="brand-subtitle">سیستەمی فرۆشتنی خێرا و بەڕێوەبردنی کۆگا (iPad POS)</div>
+          <div class="brand-subtitle" id="header_current_tab_title">⚡ شاشەی فرۆشتنی خێرا (POS)</div>
         </div>
       </div>
 
@@ -47,32 +51,91 @@
         </button>
       </div>
     </div>
+  </header>
 
-    <!-- Navigation Tabs -->
-    <nav class="nav-tabs-wrapper">
-      <button class="nav-tab active" data-tab="pos">
-        <span>⚡</span> شاشەی فرۆشتنی خێرا (POS)
+  <!-- Slide-Out Navigation Drawer Menu -->
+  <div id="app_drawer_backdrop" class="drawer-backdrop no-print"></div>
+  <aside id="app_drawer_panel" class="drawer-panel no-print">
+    <div class="drawer-header">
+      <div class="drawer-brand">
+        <div class="brand-logo">🐔</div>
+        <div>
+          <div class="drawer-title">مریشک فرۆشی سەرگەڵو</div>
+          <div class="drawer-subtitle">بەڕێوەبردنی فرۆشتن و کۆگا</div>
+        </div>
+      </div>
+      <button type="button" id="btn_close_drawer" class="icon-btn close-drawer-btn" title="داخستن">✕</button>
+    </div>
+
+    <nav class="drawer-nav-list">
+      <button type="button" class="drawer-nav-item active" data-tab="pos">
+        <span class="d-icon">⚡</span>
+        <div class="d-text">
+          <div class="d-title">شاشەی فرۆشتنی خێرا (POS)</div>
+          <div class="d-desc">تەرازوو، فرۆشتن و چاپی وەسڵ</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="advisor">
-        <span>💡</span> ڕاوێژکاری زیرەکی نرخ (پێشنیاری ڕۆژ)
+
+      <button type="button" class="drawer-nav-item" data-tab="advisor">
+        <span class="d-icon">💡</span>
+        <div class="d-text">
+          <div class="d-title">ڕاوێژکاری زیرەکی نرخ</div>
+          <div class="d-desc">پێشنیاری ڕۆژ بۆ دیاریکردنی نرخ</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="batches">
-        <span>📦</span> داخڵکردنی باری نوێ (مەخزەن)
+
+      <button type="button" class="drawer-nav-item" data-tab="batches">
+        <span class="d-icon">📦</span>
+        <div class="d-text">
+          <div class="d-title">داخڵکردنی باری نوێ (مەخزەن)</div>
+          <div class="d-desc">قەفەز، کێش، نرخی کڕین و فرۆشتن</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="losses">
-        <span>⚠️</span> مرداربوونەوە و زیان
+
+      <button type="button" class="drawer-nav-item" data-tab="losses">
+        <span class="d-icon">⚠️</span>
+        <div class="d-text">
+          <div class="d-title">مرداربوونەوە و زیان</div>
+          <div class="d-desc">تۆماری لەدەستچوون لە مەخزەن</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="expenses">
-        <span>💸</span> خەرجییە کاتییەکان
+
+      <button type="button" class="drawer-nav-item" data-tab="expenses">
+        <span class="d-icon">💸</span>
+        <div class="d-text">
+          <div class="d-title">خەرجییە کاتییەکان</div>
+          <div class="d-desc">غاز، عەلاگە، عەلەف، کرێ و کارەبا</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="reports">
-        <span>📊</span> ڕاپۆرتی ڕۆژانە و قازانج
+
+      <button type="button" class="drawer-nav-item" data-tab="reports">
+        <span class="d-icon">📊</span>
+        <div class="d-text">
+          <div class="d-title">ڕاپۆرتی ڕۆژانە و قازانج</div>
+          <div class="d-desc">حسابی ساف، داهات و تێچوو</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
-      <button class="nav-tab" data-tab="settings">
-        <span>⚙️</span> ڕێکخستن و پاشەکەوت
+
+      <button type="button" class="drawer-nav-item" data-tab="settings">
+        <span class="d-icon">⚙️</span>
+        <div class="d-text">
+          <div class="d-title">ڕێکخستن و پاشەکەوت</div>
+          <div class="d-desc">زانیاری دوکان، نرخی بنەڕەتی و باکئەپ</div>
+        </div>
+        <span class="d-arrow">←</span>
       </button>
     </nav>
-  </header>
+
+    <div class="drawer-footer">
+      <div class="drawer-version">فێرژنی مۆدێرن v2.0 • سیستەمی ئۆفلاین</div>
+    </div>
+  </aside>
 
   <!-- Main Content Areas -->
   <main class="main-content no-print">
@@ -1095,13 +1158,13 @@
   <div id="toast_container" class="toast-container no-print"></div>
 
   <!-- Scripts with Cache Busting -->
-  <script src="js/db.js?v=20260901_16"></script>
-  <script src="js/pos.js?v=20260901_16"></script>
-  <script src="js/advisor.js?v=20260901_16"></script>
-  <script src="js/batches.js?v=20260901_16"></script>
-  <script src="js/losses.js?v=20260901_16"></script>
-  <script src="js/expenses.js?v=20260901_16"></script>
-  <script src="js/reports.js?v=20260901_16"></script>
-  <script src="js/app.js?v=20260901_16"></script>
+  <script src="js/db.js?v=20260901_17"></script>
+  <script src="js/pos.js?v=20260901_17"></script>
+  <script src="js/advisor.js?v=20260901_17"></script>
+  <script src="js/batches.js?v=20260901_17"></script>
+  <script src="js/losses.js?v=20260901_17"></script>
+  <script src="js/expenses.js?v=20260901_17"></script>
+  <script src="js/reports.js?v=20260901_17"></script>
+  <script src="js/app.js?v=20260901_17"></script>
 </body>
 </html>

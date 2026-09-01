@@ -13,6 +13,7 @@ class AppController {
 
   init() {
     this.bindNavigation();
+    this.bindMenuDrawer();
     this.bindModals();
     this.bindKeyboardShortcuts();
     this.bindSoundToggle();
@@ -22,6 +23,31 @@ class AppController {
     this.bindBackupActions();
     this.bindGlobalInputSanitization();
     this.registerServiceWorker();
+  }
+
+  // Slide-Out Menu Drawer Controls
+  bindMenuDrawer() {
+    const btnOpen = document.getElementById('btn_open_menu');
+    const btnClose = document.getElementById('btn_close_drawer');
+    const backdrop = document.getElementById('app_drawer_backdrop');
+    const panel = document.getElementById('app_drawer_panel');
+
+    const openDrawer = () => {
+      if (panel) panel.classList.add('active');
+      if (backdrop) backdrop.classList.add('active');
+      this.playSound('toggle');
+    };
+
+    const closeDrawer = () => {
+      if (panel) panel.classList.remove('active');
+      if (backdrop) backdrop.classList.remove('active');
+    };
+
+    if (btnOpen) btnOpen.addEventListener('click', openDrawer);
+    if (btnClose) btnClose.addEventListener('click', closeDrawer);
+    if (backdrop) backdrop.addEventListener('click', closeDrawer);
+
+    this.closeDrawer = closeDrawer;
   }
 
   // Register PWA Service Worker for 100% Offline Capability
@@ -48,11 +74,14 @@ class AppController {
 
   // Navigation
   bindNavigation() {
-    document.querySelectorAll('.nav-tab, .mobile-nav-item').forEach(tab => {
+    document.querySelectorAll('.drawer-nav-item, .nav-tab, .mobile-nav-item').forEach(tab => {
       tab.addEventListener('click', (e) => {
         const tabId = e.currentTarget.getAttribute('data-tab');
         this.switchTab(tabId);
         this.playSound('click');
+        if (this.closeDrawer) {
+          this.closeDrawer();
+        }
       });
     });
   }
@@ -132,6 +161,12 @@ class AppController {
   switchTab(tabId) {
     if (!tabId) return;
 
+    // Update Drawer navigation items
+    document.querySelectorAll('.drawer-nav-item').forEach(t => {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tabId);
+    });
+
+    // Update Top / Mobile nav tabs if present
     document.querySelectorAll('.nav-tab').forEach(t => {
       const isActive = t.getAttribute('data-tab') === tabId;
       t.classList.toggle('active', isActive);
@@ -149,6 +184,21 @@ class AppController {
     document.querySelectorAll('.tab-pane').forEach(p => {
       p.classList.toggle('active', p.id === `tab_${tabId}`);
     });
+
+    // Update header subtitle
+    const headerSub = document.getElementById('header_current_tab_title');
+    if (headerSub) {
+      const titles = {
+        pos: '⚡ شاشەی فرۆشتنی خێرا (POS)',
+        advisor: '💡 ڕاوێژکاری زیرەکی نرخ',
+        batches: '📦 داخڵکردنی باری نوێ (مەخزەن)',
+        losses: '⚠️ مرداربوونەوە و لەدەستچوون',
+        expenses: '💸 خەرجییە کاتییەکان',
+        reports: '📊 ڕاپۆرتی ڕۆژانە و قازانج',
+        settings: '⚙️ ڕێکخستن و پاشەکەوت'
+      };
+      headerSub.textContent = titles[tabId] || 'مریشک فرۆشی سەرگەڵو';
+    }
 
     try {
       window.scrollTo({ top: 0, behavior: 'instant' });
